@@ -1,12 +1,13 @@
 import base64
 import json
 import logging
-import redis
 from dataclasses import dataclass, field
 from functools import lru_cache
 
-from dojo.models import Finding
 import dojo.problem.helper as problems_help
+from dojo.models import Finding
+
+import redis
 
 logger = logging.getLogger(__name__)
 
