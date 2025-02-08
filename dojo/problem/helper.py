@@ -1,10 +1,11 @@
-from django.conf import settings
 import json
 import logging
 import os
 from pathlib import Path
 
 import requests
+from django.conf import settings
+
 logger = logging.getLogger(__name__)
 
 MEDIA_ROOT = Path(os.getenv("DD_MEDIA_ROOT", "/app/media"))
@@ -23,41 +24,39 @@ def validate_json(data):
 
 
 def download_json(json_url):
-    response = requests.get(json_url, timeout=5, verify=False)
+    response = requests.get(json_url, timeout=5, verify=True)
     response.raise_for_status()
     return response.json()
 
 
 def load_cached_json():
-    if os.path.exists(CACHED_JSON_DISAMBIGUATOR):
+    if CACHED_JSON_DISAMBIGUATOR.exists():
         try:
             with CACHED_JSON_DISAMBIGUATOR.open("r", encoding="utf-8") as f:
                 data = json.load(f)
                 if validate_json(data):
                     return data
-                else:
-                    logger.warning('Cached JSON failed validation.')
+                logger.warning("Cached JSON failed validation.")
         except json.JSONDecodeError:
-            logger.error('Error decoding JSON from cache.')
+            logger.error("Error decoding JSON from cache.")
         except Exception as e:
-            logger.error(f'Unexpected error loading JSON from cache: {e}')
+            logger.error(f"Unexpected error loading JSON from cache: {e}")
     else:
-        logger.info('Cached JSON file does not exist.')
+        logger.info("Cached JSON file does not exist.")
     return None
 
 
 def mapping_script_problem_id(mappings_json_findings):
-    script_to_problem_mapping = {
+    return {
         script_id: key
         for key, script_ids in mappings_json_findings.items()
         for script_id in script_ids
     }
-    return script_to_problem_mapping
 
 
 def save_json_to_cache(data):
-    logger.info('Saving disambiguator JSON to cache and updating problem cache.')
-    with open(CACHED_JSON_DISAMBIGUATOR, 'w') as f:
+    logger.info("Saving disambiguator JSON to cache and updating problem cache.")
+    with open(CACHED_JSON_DISAMBIGUATOR, "w", encoding="utf-8") as f:
         json.dump(data, f)
 
 
@@ -73,12 +72,13 @@ def load_json(check_cache=True):
             if validate_json(data):
                 save_json_to_cache(data)
                 return mapping_script_problem_id(data)
-        else:
-            logger.error('No disambiguator JSON URL provided.')
+
+        logger.error("No disambiguator JSON URL provided.")
     except requests.RequestException as e:
-        logger.error('HTTP error while loading JSON: %s', e)
+        logger.error("HTTP error while loading JSON: %s", e)
     except json.JSONDecodeError as e:
-        logger.error('JSON decoding error: %s', e)
+        logger.error("JSON decoding error: %s", e)
     except Exception as e:
-        logger.error('Unexpected error: %s', e)
+        logger.error("Unexpected error: %s", e)
+
     return {}
