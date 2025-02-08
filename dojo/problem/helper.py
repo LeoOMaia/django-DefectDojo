@@ -31,12 +31,14 @@ def download_json(json_url):
         response = requests.get(json_url, timeout=5, verify=True)
         response.raise_for_status()
         return response.json()
-    
+
     if parsed_url.scheme == "file":
         logger.info("Loading disambiguator JSON from file %s", parsed_url.path)
         file_path = parsed_url.path
-        with open(file_path, "r", encoding="utf-8") as file:
+        with open(file_path, encoding="utf-8") as file:
             return json.load(file)
+
+    return None
 
 
 def load_cached_json():
@@ -53,7 +55,7 @@ def load_cached_json():
             logger.error(f"Unexpected error loading JSON from cache: {e}")
     else:
         logger.info("Cached JSON file does not exist.")
-    
+
     return None
 
 
