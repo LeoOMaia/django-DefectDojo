@@ -1,13 +1,15 @@
-import json
-import os
-import requests
 from django.conf import settings
-
+import json
 import logging
+import os
+from pathlib import Path
+
+import requests
 logger = logging.getLogger(__name__)
 
-MEDIA_ROOT = os.getenv('DD_MEDIA_ROOT', '/app/media')
-CACHED_JSON_DISAMBIGUATOR = os.path.join(MEDIA_ROOT, 'cached_disambiguator.json')
+MEDIA_ROOT = Path(os.getenv("DD_MEDIA_ROOT", "/app/media"))
+CACHED_JSON_DISAMBIGUATOR = MEDIA_ROOT / "cached_disambiguator.json"
+
 
 def validate_json(data):
     if not isinstance(data, dict):
@@ -19,15 +21,17 @@ def validate_json(data):
             return False
     return True
 
+
 def download_json(json_url):
     response = requests.get(json_url, timeout=5, verify=False)
     response.raise_for_status()
     return response.json()
 
+
 def load_cached_json():
     if os.path.exists(CACHED_JSON_DISAMBIGUATOR):
         try:
-            with open(CACHED_JSON_DISAMBIGUATOR, 'r') as f:
+            with CACHED_JSON_DISAMBIGUATOR.open("r", encoding="utf-8") as f:
                 data = json.load(f)
                 if validate_json(data):
                     return data
@@ -41,6 +45,7 @@ def load_cached_json():
         logger.info('Cached JSON file does not exist.')
     return None
 
+
 def mapping_script_problem_id(mappings_json_findings):
     script_to_problem_mapping = {
         script_id: key
@@ -49,10 +54,12 @@ def mapping_script_problem_id(mappings_json_findings):
     }
     return script_to_problem_mapping
 
+
 def save_json_to_cache(data):
     logger.info('Saving disambiguator JSON to cache and updating problem cache.')
     with open(CACHED_JSON_DISAMBIGUATOR, 'w') as f:
         json.dump(data, f)
+
 
 def load_json(check_cache=True):
     try:
