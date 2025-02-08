@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 from django.conf import settings
@@ -24,9 +25,17 @@ def validate_json(data):
 
 
 def download_json(json_url):
-    response = requests.get(json_url, timeout=5, verify=True)
-    response.raise_for_status()
-    return response.json()
+    parsed_url = urlparse(json_url)
+    if parsed_url.scheme in ['http', 'https']:
+        logger.info("Downloading disambiguator JSON from %s", json_url)
+        response = requests.get(json_url, timeout=5, verify=True)
+        response.raise_for_status()
+        return response.json()
+    elif parsed_url.scheme == 'file':
+        logger.info("Loading disambiguator JSON from file %s", parsed_url.path)
+        file_path = parsed_url.path
+        with open(file_path, 'r') as file:
+            return json.load(file)
 
 
 def load_cached_json():
@@ -75,7 +84,7 @@ def load_json(check_cache=True):
 
         logger.error("No disambiguator JSON URL provided.")
     except requests.RequestException as e:
-        logger.error("HTTP error while loading JSON: %s", e)
+        logger.error("Error while loading JSON: %s", e)
     except json.JSONDecodeError as e:
         logger.error("JSON decoding error: %s", e)
     except Exception as e:
