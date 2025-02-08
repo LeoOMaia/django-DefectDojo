@@ -19,6 +19,7 @@ SEVERITY_ORDER = {
     'Info': 1
 }
 
+
 @dataclass
 class Problem:
     name: str
@@ -49,7 +50,8 @@ class Problem:
 @lru_cache(maxsize=1)
 def get_redis_client():
     return redis.Redis(host='django-defectdojo-redis-1', port=6379, decode_responses=True)
-    
+
+
 def add_finding_to_redis(finding):
     if finding.vuln_id_from_tool and finding.severity != 'Info':
         redis_client = get_redis_client()
@@ -82,6 +84,7 @@ def add_finding_to_redis(finding):
         else:
             dict_problems_findings()
 
+
 def remove_finding_from_redis(finding_id_to_remove):
     redis_client = get_redis_client()
     if redis_client.exists('problems', 'id_to_problem'):
@@ -107,6 +110,7 @@ def remove_finding_from_redis(finding_id_to_remove):
     else:
         dict_problems_findings()
 
+
 def dict_problems_findings():
     redis_client = get_redis_client()
     if redis_client.exists('problems', 'id_to_problem'):
@@ -127,7 +131,7 @@ def dict_problems_findings():
     # if no have problems, return empty dict and not save in redis
     if not problems:
         return problems, id_to_problem
-    
+
     # Save problems and id_to_problem in redis
     redis_client.delete('problems')
     redis_client.delete('id_to_problem')
@@ -137,10 +141,9 @@ def dict_problems_findings():
         redis_client.hset('problems', key, value)
     for key, value in id_to_problem_data.items():
         redis_client.hset('id_to_problem', key, value)
-    
+
     return problems, id_to_problem
-    
-    
+
 
 def find_or_create_problem(finding, script_to_problem_mapping, problems, id_to_problem):
     script_id = finding.vuln_id_from_tool

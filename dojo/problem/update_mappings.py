@@ -1,7 +1,3 @@
-import json
-import os
-import requests
-
 from dojo.celery import app
 from dojo.decorators import dojo_async_task
 from dojo.problem.helper import load_json

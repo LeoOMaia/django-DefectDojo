@@ -23,5 +23,5 @@ urlpatterns = [
         r"^problems/(?P<problem_id>[^/]+)/findings$",
         views.ProblemFindings.as_view(),
         name="problem_findings",
-    )
+    ),
 ]

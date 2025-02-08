@@ -1,14 +1,11 @@
-from collections import OrderedDict
-
 from django.http import HttpRequest
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import render
 from django.views import View
-from django.db.models import Count, Q
 from django.core.paginator import Paginator
 
 from dojo.utils import add_breadcrumb
-from dojo.models import Finding, Endpoint
-from dojo.problem.redis import Problem, dict_problems_findings
+from dojo.models import Finding
+from dojo.problem.redis import dict_problems_findings
 
 import logging
 logger = logging.getLogger(__name__)
@@ -26,19 +23,7 @@ class ListProblems(View):
         return getattr(self, "problem_id", None)
 
     def add_breadcrumbs(self, request: HttpRequest, context: dict):
-        if "endpoints" in request.GET:
-            endpoint_ids = request.GET.getlist("endpoints", [])
-            if len(endpoint_ids) == 1 and endpoint_ids[0]:
-                endpoint_id = endpoint_ids[0]
-                endpoint = get_object_or_404(Endpoint, id=endpoint_id)
-                context["filter_name"] = "Vulnerable Endpoints"
-                context["custom_breadcrumb"] = OrderedDict([
-                    ("Endpoints", reverse("vulnerable_endpoints")),
-                    (endpoint, reverse("view_endpoint", args=(endpoint.id,))),
-                ])
-        elif not self.get_engagement_id():
-            add_breadcrumb(title="Problems", top_level=not len(request.GET), request=request)
-
+        add_breadcrumb(title="Problems", top_level=not len(request.GET), request=request)
         return request, context
 
     def order_field(self, request: HttpRequest, problems_findings_list):
@@ -52,14 +37,14 @@ class ListProblems(View):
             elif order_field == "title":
                 problems_findings_list = sorted(problems_findings_list, key=lambda x: x.title, reverse=reverse_order)
             elif order_field == "found_by":
-                sorted_list = sorted(problems_findings_list, key=lambda x: x.found_by.count(), reverse=reverse_order)
+                problems_findings_list = sorted(problems_findings_list, key=lambda x: x.found_by.count(), reverse=reverse_order)
             elif order_field == "findings_count":
                 problems_findings_list = sorted(problems_findings_list, key=lambda x: len(x.finding_ids), reverse=reverse_order)
             elif order_field == "total_script_ids":
                 problems_findings_list = sorted(problems_findings_list, key=lambda x: len(x.script_ids), reverse=reverse_order)
         return problems_findings_list
-    
-    def get_problems_map(self, request: HttpRequest):
+
+    def get_problems_map(self):
         problems_map, _ = dict_problems_findings()
         return problems_map
 
@@ -77,7 +62,7 @@ class ListProblems(View):
         return paginator.get_page(page_number)
 
     def get(self, request: HttpRequest):
-        self.problems_map = self.get_problems_map(request)
+        self.problems_map = self.get_problems_map()
         problems = self.get_problems(request)
         paginated_problems = self.paginate_queryset(problems, request)
 
@@ -122,7 +107,7 @@ class ProblemFindings(ListProblems):
 
     def get(self, request: HttpRequest, problem_id: int):
         self.problem_id = problem_id
-        self.problems_map = self.get_problems_map(request)
+        self.problems_map = self.get_problems_map()
         problem_name, findings = self.get_findings(request)
         paginated_findings = self.paginate_queryset(findings, request)
 

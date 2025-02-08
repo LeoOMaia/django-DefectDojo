@@ -1,10 +1,7 @@
 import json
 import os
 import requests
-
 from django.conf import settings
-
-from dojo.models import Finding
 
 import logging
 logger = logging.getLogger(__name__)

@@ -220,7 +220,6 @@ class DefaultImporter(BaseImporter, DefaultImporterOptions):
                 finding.save()
             else:
                 finding.save(push_to_jira=self.push_to_jira)
-            
             add_finding_to_redis(finding)
 
         for (group_name, findings) in group_names_to_findings_dict.items():

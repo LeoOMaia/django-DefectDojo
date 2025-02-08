@@ -139,6 +139,7 @@ def paginate(page, adjacent=2):
 def can_add_product(user):
     return get_authorized_product_types(Permissions.Product_Type_Add_Product).count() > 0
 
+
 @register.filter
 def check_problems_enabled(user):
     return settings.PROBLEM_MAPPINGS_JSON_URL is not None
