@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 
 import redis
+
 from dojo.models import Finding
 import dojo.problem.helper as problems_help
 

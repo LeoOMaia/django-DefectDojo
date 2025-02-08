@@ -16,7 +16,6 @@ from django.db.models import Count, F, Max, OuterRef, Prefetch, Q, Subquery, Sum
 from django.db.models.expressions import Value
 from django.db.models.query import QuerySet
 from django.http import Http404, HttpRequest, HttpResponseRedirect, JsonResponse
-from dojo.problem.redis import add_finding_to_redis
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
@@ -92,6 +91,7 @@ from dojo.models import (
     Test,
     Test_Type,
 )
+from dojo.problem.redis import add_finding_to_redis
 from dojo.product.queries import (
     get_authorized_global_groups_for_product,
     get_authorized_global_members_for_product,
