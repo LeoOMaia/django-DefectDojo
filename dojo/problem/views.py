@@ -1,14 +1,16 @@
+import logging
+
+from django.core.paginator import Paginator
 from django.http import HttpRequest
 from django.shortcuts import render
 from django.views import View
-from django.core.paginator import Paginator
 
-from dojo.utils import add_breadcrumb
 from dojo.models import Finding
 from dojo.problem.redis import dict_problems_findings
+from dojo.utils import add_breadcrumb
 
-import logging
 logger = logging.getLogger(__name__)
+
 
 class ListProblems(View):
     filter_name = "All"
@@ -27,9 +29,9 @@ class ListProblems(View):
         return request, context
 
     def order_field(self, request: HttpRequest, problems_findings_list):
-        order_field = request.GET.get('o')
+        order_field = request.GET.get("o")
         if order_field:
-            reverse_order = order_field.startswith('-')
+            reverse_order = order_field.startswith("-")
             if reverse_order:
                 order_field = order_field[1:]
             if order_field == "name":
@@ -56,9 +58,9 @@ class ListProblems(View):
         return self.order_field(request, list_problem)
 
     def paginate_queryset(self, queryset, request: HttpRequest):
-        page_size = request.GET.get('page_size', 25)  # Default is 25
+        page_size = request.GET.get("page_size", 25)  # Default is 25
         paginator = Paginator(queryset, page_size)
-        page_number = request.GET.get('page')
+        page_number = request.GET.get("page")
         return paginator.get_page(page_number)
 
     def get(self, request: HttpRequest):
@@ -85,6 +87,7 @@ class ListOpenProblems(ListProblems):
                 list_problem.append(problem)
         return self.order_field(request, list_problem)
 
+
 class ListClosedProblems(ListProblems):
     filter_name = "Closed"
 
@@ -94,6 +97,7 @@ class ListClosedProblems(ListProblems):
             if not any(Finding.objects.filter(id=finding_id, active=True) for finding_id in problem.finding_ids):
                 list_problem.append(problem)
         return self.order_field(request, list_problem)
+
 
 class ProblemFindings(ListProblems):
     def get_template(self):

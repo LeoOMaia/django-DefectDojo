@@ -1,8 +1,9 @@
+import logging
+
 from dojo.celery import app
 from dojo.decorators import dojo_async_task
 from dojo.problem.helper import load_json
 
-import logging
 logger = logging.getLogger(__name__)
 
 
