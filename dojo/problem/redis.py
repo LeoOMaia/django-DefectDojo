@@ -4,10 +4,10 @@ import logging
 from dataclasses import dataclass, field
 from functools import lru_cache
 
+import redis
+
 import dojo.problem.helper as problems_help
 from dojo.models import Finding
-
-import redis
 
 logger = logging.getLogger(__name__)
 
