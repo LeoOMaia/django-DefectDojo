@@ -58,6 +58,7 @@ from dojo.models import (
     Test_Import_Finding_Action,
 )
 from dojo.notifications.helper import create_notification
+from dojo.problem.redis import add_finding_to_redis
 from dojo.test.queries import get_authorized_tests
 from dojo.tools.factory import get_choices_sorted, get_scan_types_sorted
 from dojo.user.queries import get_authorized_users
@@ -543,6 +544,8 @@ class AddFindingView(View):
             finding_helper.add_endpoints(finding, context["form"])
             # Save the finding at the end and return
             finding.save()
+
+            add_finding_to_redis(finding)
 
             return finding, request, True
         add_error_message_to_response("The form has errors, please correct them below.")

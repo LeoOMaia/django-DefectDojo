@@ -16,6 +16,7 @@ from django.db.models import Count, F, Max, OuterRef, Prefetch, Q, Subquery, Sum
 from django.db.models.expressions import Value
 from django.db.models.query import QuerySet
 from django.http import Http404, HttpRequest, HttpResponseRedirect, JsonResponse
+from dojo.problem.redis import add_finding_to_redis
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
@@ -1386,6 +1387,8 @@ class AdHocFindingView(View):
             finding_helper.add_endpoints(finding, context["form"])
             # Save the finding at the end and return
             finding.save()
+
+            add_finding_to_redis(finding)
 
             return finding, request, True
         add_error_message_to_response("The form has errors, please correct them below.")

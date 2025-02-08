@@ -99,6 +99,7 @@ from dojo.models import (
     Vulnerability_Id_Template,
 )
 from dojo.notifications.helper import create_notification
+from dojo.problem.redis import add_finding_to_redis, remove_finding_from_redis
 from dojo.test.queries import get_authorized_tests
 from dojo.utils import (
     FileIterWrapper,
@@ -1146,6 +1147,10 @@ class EditFinding(View):
         request, success = self.process_forms(request, finding, context)
         # Handle the case of a successful form
         if success:
+
+            remove_finding_from_redis(int(finding_id))
+            add_finding_to_redis(finding)
+
             return redirect_to_return_url_or_else(request, reverse("view_finding", args=(finding_id,)))
         # Render the form
         return render(request, self.get_template(), context)
@@ -2747,6 +2752,9 @@ def finding_bulk_update_all(request, pid=None):
                         # use super to avoid all custom logic in our overriden save method
                         # it will trigger the pre_save signal
                         find.save_no_options()
+
+                        remove_finding_from_redis(int(find.id))
+                        add_finding_to_redis(find)
 
                         if system_settings.false_positive_history:
                             # If finding is being marked as false positive
