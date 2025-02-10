@@ -2690,6 +2690,7 @@ def finding_bulk_update_all(request, pid=None):
                 deleted_find_count = finds.count()
 
                 for find in finds:
+                    remove_finding_from_redis(int(find.id))
                     find.delete()
 
                 if skipped_find_count > 0:

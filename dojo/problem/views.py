@@ -112,13 +112,6 @@ class ProblemFindings(ListProblems):
 
         list_findings = problem.finding_ids
         findings = Finding.objects.filter(id__in=list_findings)
-
-        # When all the findings was removed with Bulk Edit and the problem still exists
-        if not findings:
-            for finding_id in list_findings:
-                remove_finding_from_redis(finding_id)
-            return None, []
-
         return problem.name, self.order_field(request, findings)
 
     def get(self, request: HttpRequest, problem_id: int):
