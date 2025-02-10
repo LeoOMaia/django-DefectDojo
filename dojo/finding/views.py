@@ -1163,6 +1163,7 @@ class DeleteFinding(View):
     def process_form(self, request: HttpRequest, finding: Finding, context: dict):
         if context["form"].is_valid():
             product = finding.test.engagement.product
+            remove_finding_from_redis(int(finding.id))
             finding.delete()
             # Update the grade of the product async
             calculate_grade(product)
