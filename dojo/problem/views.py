@@ -6,7 +6,7 @@ from django.shortcuts import render
 from django.views import View
 
 from dojo.models import Finding
-from dojo.problem.redis import dict_problems_findings
+from dojo.problem.redis import dict_problems_findings, remove_finding_from_redis
 from dojo.utils import add_breadcrumb
 
 logger = logging.getLogger(__name__)
@@ -105,8 +105,20 @@ class ProblemFindings(ListProblems):
 
     def get_findings(self, request: HttpRequest):
         problem = self.problems_map.get(self.problem_id)
+
+        # When the problem not exists, or the findings was changed for severity=Info
+        if not problem:
+            return None, []
+
         list_findings = problem.finding_ids
         findings = Finding.objects.filter(id__in=list_findings)
+
+        # When all the findings was removed with Bulk Edit and the problem still exists
+        if not findings:
+            for finding_id in list_findings:
+                remove_finding_from_redis(finding_id)
+            return None, []
+        
         return problem.name, self.order_field(request, findings)
 
     def get(self, request: HttpRequest, problem_id: int):
@@ -117,6 +129,7 @@ class ProblemFindings(ListProblems):
 
         context = {
             "problem": problem_name,
+            "problem_id": self.problem_id,
             "findings": paginated_findings,
         }
 

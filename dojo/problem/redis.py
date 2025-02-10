@@ -60,10 +60,7 @@ def add_finding_to_redis(finding):
             script_id = finding.vuln_id_from_tool
             script_to_problem_mapping = problems_help.load_json()
             problem_id = script_to_problem_mapping.get(script_id, script_id)
-
-            script_id = base64.b64encode(script_id.encode()).decode()
             problem_id = base64.b64encode(problem_id.encode()).decode()
-
             problem = redis_client.hget("problems", problem_id)
             if problem:
                 problem = Problem.from_dict(json.loads(problem))
@@ -144,8 +141,6 @@ def dict_problems_findings():
 def find_or_create_problem(finding, script_to_problem_mapping, problems, id_to_problem):
     script_id = finding.vuln_id_from_tool
     problem_id = script_to_problem_mapping.get(script_id, script_id)
-
-    script_id = base64.b64encode(script_id.encode()).decode()
     problem_id = base64.b64encode(problem_id.encode()).decode()
 
     if problem_id in problems:
