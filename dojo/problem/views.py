@@ -6,7 +6,7 @@ from django.shortcuts import render
 from django.views import View
 
 from dojo.models import Finding
-from dojo.problem.redis import dict_problems_findings, remove_finding_from_redis
+from dojo.problem.redis import dict_problems_findings
 from dojo.utils import add_breadcrumb
 
 logger = logging.getLogger(__name__)
