@@ -118,7 +118,7 @@ class ProblemFindings(ListProblems):
             for finding_id in list_findings:
                 remove_finding_from_redis(finding_id)
             return None, []
-        
+
         return problem.name, self.order_field(request, findings)
 
     def get(self, request: HttpRequest, problem_id: int):
