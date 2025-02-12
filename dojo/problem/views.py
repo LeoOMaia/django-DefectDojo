@@ -5,7 +5,8 @@ from django.http import HttpRequest
 from django.shortcuts import render
 from django.views import View
 
-from dojo.models import Finding
+from dojo.forms import FindingBulkUpdateForm
+from dojo.models import Finding, Global_Role
 from dojo.problem.redis import dict_problems_findings
 from dojo.utils import add_breadcrumb
 
@@ -17,16 +18,6 @@ class ListProblems(View):
 
     def get_template(self):
         return "dojo/problems_list.html"
-
-    def get_engagement_id(self):
-        return getattr(self, "engagement_id", None)
-
-    def get_problem_id(self):
-        return getattr(self, "problem_id", None)
-
-    def add_breadcrumbs(self, request: HttpRequest, context: dict):
-        add_breadcrumb(title="Problems", top_level=not len(request.GET), request=request)
-        return request, context
 
     def order_field(self, request: HttpRequest, problems_findings_list):
         order_field = request.GET.get("o")
@@ -64,16 +55,20 @@ class ListProblems(View):
         return paginator.get_page(page_number)
 
     def get(self, request: HttpRequest):
-        self.problems_map = self.get_problems_map()
-        problems = self.get_problems(request)
-        paginated_problems = self.paginate_queryset(problems, request)
+        global_role = Global_Role.objects.filter(user=request.user).first()
+        if request.user.is_superuser or (global_role and global_role.role):
+            self.problems_map = self.get_problems_map()
+            problems = self.get_problems(request)
+            paginated_problems = self.paginate_queryset(problems, request)
+        else:
+            paginated_problems = None
 
         context = {
             "filter_name": self.filter_name,
             "problems": paginated_problems,
         }
 
-        request, context = self.add_breadcrumbs(request, context)
+        add_breadcrumb(title="Problems", top_level=not len(request.GET), request=request)
         return render(request, self.get_template(), context)
 
 
@@ -116,15 +111,20 @@ class ProblemFindings(ListProblems):
 
     def get(self, request: HttpRequest, problem_id: int):
         self.problem_id = problem_id
-        self.problems_map = self.get_problems_map()
-        problem_name, findings = self.get_findings(request)
-        paginated_findings = self.paginate_queryset(findings, request)
+        global_role = Global_Role.objects.filter(user=request.user).first()
+        if request.user.is_superuser or (global_role and global_role.role):
+            self.problems_map = self.get_problems_map()
+            problem_name, findings = self.get_findings(request)
+            paginated_findings = self.paginate_queryset(findings, request)
+        else:
+            problem_name, paginated_findings = None, None
 
         context = {
             "problem": problem_name,
             "problem_id": self.problem_id,
             "findings": paginated_findings,
+            "bulk_edit_form": FindingBulkUpdateForm(request.GET),
         }
 
-        request, context = self.add_breadcrumbs(request, context)
+        add_breadcrumb(title="Problems", top_level=not len(request.GET), request=request)
         return render(request, self.get_template(), context)
