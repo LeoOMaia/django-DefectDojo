@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -9,8 +8,7 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-MEDIA_ROOT = Path(os.getenv("DD_MEDIA_ROOT", "/app/media"))
-CACHED_JSON_DISAMBIGUATOR = MEDIA_ROOT / "cached_disambiguator.json"
+CACHED_JSON_DISAMBIGUATOR = Path("/app/crivo-metadata/cached_disambiguator.json")
 
 
 def validate_json(data):
