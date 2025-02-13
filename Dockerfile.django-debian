@@ -113,9 +113,7 @@ RUN \
     mkdir -p media/threat && chown -R ${uid} media && \
     # To avoid warning: (staticfiles.W004) The directory '/app/components/node_modules' in the STATICFILES_DIRS setting does not exist.
     mkdir -p components/node_modules && \
-    chown ${appuser} components/node_modules && \
-    mkdir -p /app/crivo-metadata && \
-    chown ${appuser} /app/crivo-metadata
+    chown ${appuser} components/node_modules
 USER ${uid}
 ENV \
   # Only variables that are not defined in settings.dist.py
