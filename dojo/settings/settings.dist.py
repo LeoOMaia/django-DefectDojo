@@ -1751,7 +1751,6 @@ DELETE_PREVIEW = env("DD_DELETE_PREVIEW")
 # see https://github.com/laymonage/django-jsonfield-backport
 SILENCED_SYSTEM_CHECKS = ["django_jsonfield_backport.W001"]
 
-
 VULNERABILITY_URLS = {
     "ALBA-": "https://osv.dev/vulnerability/",  # e.g. https://osv.dev/vulnerability/ALBA-2019:3411
     "ALSA-": "https://osv.dev/vulnerability/",  # e.g. https://osv.dev/vulnerability/ALSA-2024:0827
