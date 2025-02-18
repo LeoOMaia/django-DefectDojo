@@ -1,1 +1,0 @@
-The directory where this message is located will be the one where the disambiguator.json file will be generated. This file will be used to group findings into problems.

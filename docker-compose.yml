@@ -51,8 +51,8 @@ services:
         - type: bind
           source: ./docker/extra_settings
           target: /app/docker/extra_settings
+        - "defectdojo_crivo:/app/crivo-metadata"
         - "defectdojo_media:${DD_MEDIA_ROOT:-/app/media}"
-        - "./docker/crivo-metadata:/app/crivo-metadata"
   celerybeat:
     image: "defectdojo/defectdojo-django:${DJANGO_VERSION:-latest}"
     depends_on:
@@ -121,3 +121,4 @@ volumes:
   defectdojo_postgres: {}
   defectdojo_media: {}
   defectdojo_redis: {}
+  defectdojo_crivo: {}
