@@ -5,9 +5,10 @@ from django.http import HttpRequest
 from django.shortcuts import render
 from django.views import View
 
+from dojo.filters import ProblemFilter, ProblemFindingFilter
 from dojo.forms import FindingBulkUpdateForm
 from dojo.models import Finding, Global_Role
-from dojo.problem.redis import dict_problems_findings
+from dojo.problem.redis import SEVERITY_ORDER, dict_problems_findings
 from dojo.utils import add_breadcrumb
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,29 @@ class ListProblems(View):
                 problems_findings_list = sorted(problems_findings_list, key=lambda x: len(x.script_ids), reverse=reverse_order)
         return problems_findings_list
 
+    def filters(self, request: HttpRequest):
+        name_filter = request.GET.get("name", "").lower()
+        min_severity_filter = request.GET.get("severity")
+        script_id_filter = request.GET.get("script_id")
+        engagement_filter = request.GET.getlist("engagement")
+        product_filter = request.GET.getlist("product")
+        return name_filter, min_severity_filter, script_id_filter, engagement_filter, product_filter
+
+    def filter_problem(self, problem, request: HttpRequest):
+        name_filter, min_severity_filter, script_id_filter, engagement_filter, product_filter = self.filters(request)
+        add_problem = True
+        if name_filter and name_filter not in problem.name.lower():
+            add_problem = False
+        if min_severity_filter and SEVERITY_ORDER.get(problem.severity) < SEVERITY_ORDER[min_severity_filter]:
+            add_problem = False
+        if script_id_filter and not any(script_id_filter in script_id for script_id in problem.script_ids):
+            add_problem = False
+        if engagement_filter and not any(Finding.objects.filter(id=finding_id, test__engagement__id__in=engagement_filter) for finding_id in problem.finding_ids):
+            add_problem = False
+        if product_filter and not any(Finding.objects.filter(id=finding_id, test__engagement__product__id__in=product_filter) for finding_id in problem.finding_ids):
+            add_problem = False
+        return add_problem
+
     def get_problems_map(self):
         problems_map, _ = dict_problems_findings()
         return problems_map
@@ -44,8 +68,8 @@ class ListProblems(View):
     def get_problems(self, request: HttpRequest):
         list_problem = []
         for _, problem in self.problems_map.items():
-            list_problem.append(problem)
-
+            if self.filter_problem(problem, request):
+                list_problem.append
         return self.order_field(request, list_problem)
 
     def paginate_queryset(self, queryset, request: HttpRequest):
@@ -65,6 +89,7 @@ class ListProblems(View):
 
         context = {
             "filter_name": self.filter_name,
+            "filtered": ProblemFilter(request.GET),
             "problems": paginated_problems,
         }
 
@@ -79,7 +104,8 @@ class ListOpenProblems(ListProblems):
         list_problem = []
         for _, problem in self.problems_map.items():
             if any(Finding.objects.filter(id=finding_id, active=True) for finding_id in problem.finding_ids):
-                list_problem.append(problem)
+                if self.filter_problem(problem, request):
+                    list_problem.append(problem)
         return self.order_field(request, list_problem)
 
 
@@ -90,13 +116,42 @@ class ListClosedProblems(ListProblems):
         list_problem = []
         for _, problem in self.problems_map.items():
             if not any(Finding.objects.filter(id=finding_id, active=True) for finding_id in problem.finding_ids):
-                list_problem.append(problem)
+                if self.filter_problem(problem, request):
+                    list_problem.append(problem)
         return self.order_field(request, list_problem)
 
 
 class ProblemFindings(ListProblems):
     def get_template(self):
         return "dojo/problem_findings.html"
+
+    def filters(self, request: HttpRequest):
+        name_filter = request.GET.get("name", "").lower()
+        severity_filter = request.GET.getlist("severity")
+        script_id_filter = request.GET.get("script_id")
+        reporter_filter = request.GET.getlist("reporter")
+        status_filter = request.GET.get("status")
+        engagement_filter = request.GET.getlist("engagement")
+        product_filter = request.GET.getlist("product")
+        return name_filter, severity_filter, script_id_filter, reporter_filter, status_filter, engagement_filter, product_filter
+
+    def filter_findings(self, findings, request: HttpRequest):
+        name_filter, severity_filter, script_id_filter, reporter_filter, status_filter, engagement_filter, product_filter = self.filters(request)
+        if name_filter:
+            findings = findings.filter(title__icontains=name_filter)
+        if severity_filter:
+            findings = findings.filter(severity__in=severity_filter)
+        if script_id_filter:
+            findings = findings.filter(vuln_id_from_tool__icontains=script_id_filter)
+        if reporter_filter:
+            findings = findings.filter(reporter__id__in=reporter_filter)
+        if status_filter:
+            findings = findings.filter(active=status_filter == "Yes")
+        if engagement_filter:
+            findings = findings.filter(test__engagement__id__in=engagement_filter)
+        if product_filter:
+            findings = findings.filter(test__engagement__product__id__in=product_filter)
+        return findings
 
     def get_findings(self, request: HttpRequest):
         problem = self.problems_map.get(self.problem_id)
@@ -107,6 +162,7 @@ class ProblemFindings(ListProblems):
 
         list_findings = problem.finding_ids
         findings = Finding.objects.filter(id__in=list_findings)
+        findings = self.filter_findings(findings, request)
         return problem.name, self.order_field(request, findings)
 
     def get(self, request: HttpRequest, problem_id: int):
@@ -121,6 +177,7 @@ class ProblemFindings(ListProblems):
 
         context = {
             "problem": problem_name,
+            "filtered": ProblemFindingFilter(request.GET),
             "problem_id": self.problem_id,
             "findings": paginated_findings,
             "bulk_edit_form": FindingBulkUpdateForm(request.GET),

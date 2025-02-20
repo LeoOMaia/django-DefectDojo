@@ -1088,6 +1088,63 @@ class EngagementFilter(EngagementFilterHelper, DojoFilter):
         fields = ["name", "prod_type"]
 
 
+class ProblemFilter(FilterSet):
+    name = CharFilter(method="filter_name", label="Name")
+    severity = ChoiceFilter(choices=[
+    ("Low", "Low"),
+    ("Medium", "Medium"),
+    ("High", "High"),
+    ("Critical", "Critical"),
+    ], method="filter_min_severity", label="Min Severity")
+    script_id = CharFilter(method="filter_script_id", label="Script ID")
+    engagement = ModelMultipleChoiceFilter(queryset=Engagement.objects.all(), label="Engagement")
+    product = ModelMultipleChoiceFilter(queryset=Product.objects.all(), label="Product")
+
+    def filter_name(self, queryset, name, value):
+        return queryset
+
+    def filter_min_severity(self, queryset, name, value):
+        return queryset
+
+    def filter_script_id(self, queryset, name, value):
+        return queryset
+
+    class Meta:
+        model = Finding
+        fields = ["name", "severity", "script_id", "engagement", "product"]
+
+
+class ProblemFindingFilter(FilterSet):
+    name = CharFilter(method="filter_name", label="Name")
+    severity = MultipleChoiceFilter(choices=[
+    ("Low", "Low"),
+    ("Medium", "Medium"),
+    ("High", "High"),
+    ("Critical", "Critical"),
+    ], method="filter_severity", label="Severity")
+    script_id = CharFilter(method="filter_script_id", label="Script ID")
+    reporter = ModelMultipleChoiceFilter(queryset=Dojo_User.objects.all(), label="Reporter")
+    status = ChoiceFilter(choices=[("Yes", "Yes"), ("No", "No")], method="filter_status", label="Active")
+    engagement = ModelMultipleChoiceFilter(queryset=Engagement.objects.all(), label="Engagement")
+    product = ModelMultipleChoiceFilter(queryset=Product.objects.all(), label="Product")
+
+    def filter_name(self, queryset, name, value):
+        return queryset
+
+    def filter_severity(self, queryset, name, value):
+        return queryset
+
+    def filter_script_id(self, queryset, name, value):
+        return queryset
+
+    def filter_status(self, queryset, name, value):
+        return queryset
+
+    class Meta:
+        model = Finding
+        fields = ["name", "severity", "script_id", "reporter", "status", "engagement", "product"]
+
+
 class ProductEngagementsFilter(DojoFilter):
     engagement__name = CharFilter(field_name="name", lookup_expr="icontains", label="Engagement name contains")
     engagement__lead = ModelChoiceFilter(field_name="lead", queryset=Dojo_User.objects.none(), label="Lead")
