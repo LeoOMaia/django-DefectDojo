@@ -55,9 +55,9 @@ class ListProblems(View):
             add_problem = False
         if script_id_filter and not any(script_id_filter in script_id for script_id in problem.script_ids):
             add_problem = False
-        if engagement_filter and not any(Finding.objects.filter(id=finding_id, test__engagement__id__in=engagement_filter) for finding_id in problem.finding_ids):
+        if engagement_filter and not Finding.objects.filter(id__in=problem.finding_ids, test__engagement__id__in=engagement_filter).exists():
             add_problem = False
-        if product_filter and not any(Finding.objects.filter(id=finding_id, test__engagement__product__id__in=product_filter) for finding_id in problem.finding_ids):
+        if product_filter and not Finding.objects.filter(id__in=problem.finding_ids, test__engagement__product__id__in=product_filter).exists():
             add_problem = False
         return add_problem
 
