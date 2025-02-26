@@ -88,14 +88,13 @@ class ProblemHelper:
         ProblemHelper.remove_finding(int(finding.id))
         if finding.vuln_id_from_tool and finding.severity != "Info":
             redis_client = get_redis_client()
-            if redis_client.exists("problems") and redis_client.exists("id_to_problem"):
-                problem_id = problem_id_b64encode(finding.vuln_id_from_tool)
-                problem = Problem.load_from_id(problem_id, redis_client)
-                if not problem:
-                    problem = Problem(problem_id)
-                problem.add_finding(finding)
-                problem.persist(redis_client)
-                redis_client.hset("id_to_problem", finding.id, problem_id)
+            problem_id = problem_id_b64encode(finding.vuln_id_from_tool)
+            problem = Problem.load_from_id(problem_id, redis_client)
+            if not problem:
+                problem = Problem(problem_id)
+            problem.add_finding(finding)
+            problem.persist(redis_client)
+            redis_client.hset("id_to_problem", finding.id, problem_id)
 
     @staticmethod
     def remove_finding(finding_id):
@@ -123,34 +122,21 @@ def problem_id_b64encode(script_id):
 
 def dict_problems_findings():
     redis_client = get_redis_client()
-    if redis_client.exists("problems", "id_to_problem"):
-        problems_data = redis_client.hgetall("problems")
+    if redis_client.exists("problems") and redis_client.exists("id_to_problem"):
+        return _load_problems_from_redis(redis_client)
+
+    # Rebuild problems
+    redis_client.delete("problems", "id_to_problem")
+    for finding in Finding.objects.all():
+        ProblemHelper.add_finding(finding)
+    return _load_problems_from_redis(redis_client)
+
+
+def _load_problems_from_redis(redis_client):
+    problems_data = redis_client.hgetall("problems")
+    id_to_problem_data = redis_client.hgetall("id_to_problem")
+    if problems_data:
         problems = {key: Problem.from_dict(json.loads(value)) for key, value in problems_data.items()}
-        id_to_problem_data = redis_client.hgetall("id_to_problem")
         id_to_problem = {int(key): value for key, value in id_to_problem_data.items()}
         return problems, id_to_problem
-
-    problems = {}
-    id_to_problem = {}
-    for finding in Finding.objects.all():
-        if finding.vuln_id_from_tool and finding.severity != "Info":
-            find_or_create_problem(finding, problems, id_to_problem)
-
-    redis_client.delete("problems")
-    redis_client.delete("id_to_problem")
-    problems_data = {key: json.dumps(value.to_dict()) for key, value in problems.items()}
-    id_to_problem_data = dict(id_to_problem)
-    for key, value in problems_data.items():
-        redis_client.hset("problems", key, value)
-    for key, value in id_to_problem_data.items():
-        redis_client.hset("id_to_problem", key, value)
-
-    return problems, id_to_problem
-
-
-def find_or_create_problem(finding, problems, id_to_problem):
-    problem_id = problem_id_b64encode(finding.vuln_id_from_tool)
-    if problem_id not in problems:
-        problems[problem_id] = Problem(problem_id)
-    problems[problem_id].add_finding(finding)
-    id_to_problem[finding.id] = problem_id
+    return {}, {}
