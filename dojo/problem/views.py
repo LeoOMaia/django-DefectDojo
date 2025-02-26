@@ -69,7 +69,7 @@ class ListProblems(View):
         list_problem = []
         for _, problem in self.problems_map.items():
             if self.filter_problem(problem, request):
-                list_problem.append
+                list_problem.append(problem)
         return self.order_field(request, list_problem)
 
     def paginate_queryset(self, queryset, request: HttpRequest):
