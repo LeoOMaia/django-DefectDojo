@@ -16,7 +16,6 @@ from dojo.models import (
     Test_Import,
 )
 from dojo.notifications.helper import create_notification
-from dojo.problem.redis import add_finding_to_redis
 
 logger = logging.getLogger(__name__)
 deduplicationLogger = logging.getLogger("dojo.specific-loggers.deduplication")
@@ -220,7 +219,6 @@ class DefaultImporter(BaseImporter, DefaultImporterOptions):
                 finding.save()
             else:
                 finding.save(push_to_jira=self.push_to_jira)
-            add_finding_to_redis(finding)
 
         for (group_name, findings) in group_names_to_findings_dict.items():
             finding_helper.add_findings_to_auto_group(

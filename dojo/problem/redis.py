@@ -53,34 +53,6 @@ def get_redis_client():
     return redis.Redis(host="django-defectdojo-redis-1", port=6379, decode_responses=True)
 
 
-def add_finding_to_redis(finding):
-    if finding.vuln_id_from_tool and finding.severity != "Info":
-        redis_client = get_redis_client()
-        if redis_client.exists("problems", "id_to_problem"):
-            script_id = finding.vuln_id_from_tool
-            script_to_problem_mapping = problems_help.load_json()
-            problem_id = script_to_problem_mapping.get(script_id, script_id)
-            problem_id = base64.b64encode(problem_id.encode()).decode()
-            problem = redis_client.hget("problems", problem_id)
-            if problem:
-                problem = Problem.from_dict(json.loads(problem))
-                problem.finding_ids.add(finding.id)
-                problem.script_ids.add(finding.vuln_id_from_tool)
-                if SEVERITY_ORDER[finding.severity] > SEVERITY_ORDER[problem.severity]:
-                    problem.name = finding.title
-                    problem.severity = finding.severity
-                redis_client.hset("problems", problem_id, json.dumps(problem.to_dict()))
-                redis_client.hset("id_to_problem", finding.id, problem_id)
-            else:
-                problem = Problem(finding.title, problem_id, finding.severity)
-                problem.finding_ids.add(finding.id)
-                problem.script_ids.add(finding.vuln_id_from_tool)
-                redis_client.hset("problems", problem_id, json.dumps(problem.to_dict()))
-                redis_client.hset("id_to_problem", finding.id, problem_id)
-        else:
-            dict_problems_findings()
-
-
 def remove_finding_from_redis(finding_id_to_remove):
     redis_client = get_redis_client()
     if redis_client.exists("problems", "id_to_problem"):
@@ -91,6 +63,9 @@ def remove_finding_from_redis(finding_id_to_remove):
             if not problem.finding_ids:
                 redis_client.hdel("problems", problem_id)
             else:
+                # We do not use Redis' set functionality to store Findings associated with a Problem
+                # because we need to iterate over Findings whenever a Finding is deleted to update the
+                # Problem definition.
                 findings = Finding.objects.filter(id__in=problem.finding_ids)
                 severity, name, script_ids = "Info", "", set()
                 for finding in findings:
@@ -105,6 +80,36 @@ def remove_finding_from_redis(finding_id_to_remove):
             redis_client.hdel("id_to_problem", finding_id_to_remove)
     else:
         dict_problems_findings()
+
+
+def add_finding_to_redis(finding):
+    def update_problem(redis_client, problem, finding):
+        problem.finding_ids.add(finding.id)
+        problem.script_ids.add(finding.vuln_id_from_tool)
+
+        if SEVERITY_ORDER[finding.severity] > SEVERITY_ORDER[problem.severity]:
+            problem.name = finding.title
+            problem.severity = finding.severity
+
+        redis_client.hset("problems", problem_id, json.dumps(problem.to_dict()))
+        redis_client.hset("id_to_problem", finding.id, problem_id)
+
+    remove_finding_from_redis(int(finding.id))
+    if finding.vuln_id_from_tool and finding.severity != "Info":
+        redis_client = get_redis_client()
+        if redis_client.exists("problems", "id_to_problem"):
+            script_id = finding.vuln_id_from_tool
+            script_to_problem_mapping = problems_help.load_json()
+            problem_id = script_to_problem_mapping.get(script_id, script_id)
+            problem_id = base64.b64encode(problem_id.encode()).decode()
+            problem = redis_client.hget("problems", problem_id)
+            if problem:
+                problem = Problem.from_dict(json.loads(problem))
+            else:
+                problem = Problem(finding.title, problem_id, finding.severity)
+            update_problem(redis_client, problem, finding)
+        else:
+            dict_problems_findings()
 
 
 def dict_problems_findings():

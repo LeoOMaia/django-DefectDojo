@@ -91,7 +91,6 @@ from dojo.models import (
     Test,
     Test_Type,
 )
-from dojo.problem.redis import add_finding_to_redis
 from dojo.product.queries import (
     get_authorized_global_groups_for_product,
     get_authorized_global_members_for_product,
@@ -1387,8 +1386,6 @@ class AdHocFindingView(View):
             finding_helper.add_endpoints(finding, context["form"])
             # Save the finding at the end and return
             finding.save()
-
-            add_finding_to_redis(finding)
 
             return finding, request, True
         add_error_message_to_response("The form has errors, please correct them below.")

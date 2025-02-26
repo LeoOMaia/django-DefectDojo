@@ -2735,6 +2735,10 @@ class Finding(models.Model):
         else:
             logger.debug("no options selected that require finding post processing")
 
+        from dojo.problem.redis import add_finding_to_redis
+        logger.info("ADDING FINDING TO REDIS")
+        add_finding_to_redis(self)
+
     def get_absolute_url(self):
         from django.urls import reverse
         return reverse("view_finding", args=[str(self.id)])
