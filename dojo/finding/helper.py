@@ -25,7 +25,7 @@ from dojo.models import (
     Vulnerability_Id_Template,
 )
 from dojo.notes.helper import delete_related_notes
-from dojo.problem.redis import ProblemHelper
+from dojo.problem.redis import Problem
 from dojo.utils import get_current_user, mass_model_updater, to_str_typed
 
 logger = logging.getLogger(__name__)
@@ -408,7 +408,7 @@ def finding_pre_delete(sender, instance, **kwargs):
     instance.found_by.clear()
     delete_related_notes(instance)
 
-    ProblemHelper.remove_finding(int(instance.id))
+    Problem.remove_finding(int(instance.id))
 
 
 def finding_delete(instance, **kwargs):
@@ -440,7 +440,7 @@ def finding_delete(instance, **kwargs):
     logger.debug("finding delete: clearing found by")
     instance.found_by.clear()
 
-    ProblemHelper.remove_finding(int(instance.id))
+    Problem.remove_finding(int(instance.id))
 
 
 @receiver(post_delete, sender=Finding)
