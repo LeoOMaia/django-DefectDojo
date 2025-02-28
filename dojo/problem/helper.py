@@ -8,7 +8,11 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-CACHED_JSON_DISAMBIGUATOR = Path("/app/crivo-metadata/cached_disambiguator.json")
+parsed_url = urlparse(settings.PROBLEM_MAPPINGS_JSON_URL)
+if parsed_url.scheme == "file":
+    CACHED_JSON_DISAMBIGUATOR = Path(f"/app/crivo-metadata/{Path(parsed_url.path).name}")
+else:
+    CACHED_JSON_DISAMBIGUATOR = Path("/app/crivo-metadata/cached_disambiguator.json")
 
 
 def validate_json(data):
@@ -28,15 +32,15 @@ def download_json(json_url):
         logger.info("Downloading disambiguator JSON from %s", json_url)
         response = requests.get(json_url, timeout=5, verify=True)
         response.raise_for_status()
-        return response.json()
+        return True, response.json()
 
     if parsed_url.scheme == "file":
         logger.info("Loading disambiguator JSON from file %s", parsed_url.path)
         file_path = parsed_url.path
         with open(file_path, encoding="utf-8") as file:
-            return json.load(file)
+            return False, json.load(file)
 
-    return None
+    return False, None
 
 
 def load_cached_json():
@@ -79,9 +83,10 @@ def load_json(check_cache=True):
                 return mapping_script_problem_id(cached_data)
 
         if settings.PROBLEM_MAPPINGS_JSON_URL:
-            data = download_json(settings.PROBLEM_MAPPINGS_JSON_URL)
+            save_json, data = download_json(settings.PROBLEM_MAPPINGS_JSON_URL)
             if validate_json(data):
-                save_json_to_cache(data)
+                if save_json:
+                    save_json_to_cache(data)
                 return mapping_script_problem_id(data)
 
         logger.error("No disambiguator JSON URL provided.")
