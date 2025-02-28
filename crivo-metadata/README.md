@@ -1,1 +1,0 @@
-The directory where this message is located is the one where you can place the disambiguator.json file to group findings into problems. All of the files here will be in `/tmp/crivo-metadata`, and after creating the volume defectdojo_crivo in the container django-defectdojo-uwsgi-1, the file will be moved to `/app/crivo-metadata/extra`.

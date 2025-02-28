@@ -115,9 +115,7 @@ RUN \
     mkdir -p components/node_modules && \
     chown ${appuser} components/node_modules && \
     mkdir -p /app/crivo-metadata && \
-    mkdir -p /tmp/crivo-metadata && \
     chown ${appuser} /app/crivo-metadata
-COPY crivo-metadata/* /tmp/crivo-metadata/
 USER ${uid}
 ENV \
   # Only variables that are not defined in settings.dist.py

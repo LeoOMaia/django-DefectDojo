@@ -2,18 +2,6 @@
 
 . /secret-file-loader.sh
 
-if [ -d "/tmp/crivo-metadata" ]; then
-    echo "========================================================================="
-    echo "      Copying Crivo files from /tmp/crivo-metadata to /app/crivo-metadata"
-    echo "========================================================================="
-    if [ ! -d "/app/crivo-metadata/extra" ]; then
-        mkdir -p /app/crivo-metadata/extra
-    fi
-    rm -rf /app/crivo-metadata/extra/*
-    cp -r /tmp/crivo-metadata/* /app/crivo-metadata/extra/
-    rm -rf /tmp/crivo-metadata  # Remove the files after copying
-fi
-
 # Allow for bind-mount multiple settings.py overrides
 FILES=$(ls /app/docker/extra_settings/* 2>/dev/null)
 NUM_FILES=$(echo "$FILES" | wc -w)
