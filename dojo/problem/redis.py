@@ -25,16 +25,18 @@ class Problem:
     problem_id: str
     name: str = ""
     severity: str = "Info"
-    script_ids: set = field(default_factory=set)
+    main_finding_id: int = None
     finding_ids: set = field(default_factory=set)
+    script_ids: set = field(default_factory=set)
 
     def to_dict(self):
         return {
             "name": self.name,
             "problem_id": self.problem_id,
             "severity": self.severity,
-            "script_ids": list(self.script_ids),
+            "main_finding_id": self.main_finding_id,
             "finding_ids": list(self.finding_ids),
+            "script_ids": list(self.script_ids),
         }
 
     @staticmethod
@@ -43,15 +45,16 @@ class Problem:
             name=data["name"],
             problem_id=data["problem_id"],
             severity=data["severity"],
-            script_ids=set(data.get("script_ids", [])),
+            main_finding_id=data.get("main_finding_id"),
             finding_ids=set(data.get("finding_ids", [])),
+            script_ids=set(data.get("script_ids", [])),
         )
 
-    @classmethod
-    def load_from_id(cls, problem_id, redis_client):
+    @staticmethod
+    def load_from_id(problem_id, redis_client):
         problem_data = redis_client.hget("problems", problem_id)
         if problem_data:
-            return cls.from_dict(json.loads(problem_data))
+            return Problem.from_dict(json.loads(problem_data))
         return None
 
     def persist(self, redis_client):
@@ -60,45 +63,49 @@ class Problem:
         else:
             redis_client.hset("problems", self.problem_id, json.dumps(self.to_dict()))
 
-    @classmethod
-    def add_finding(cls, finding):
-        cls.remove_finding(int(finding.id))
+    def update_name_sev(self, finding):
+        if SEVERITY_ORDER[finding.severity] > SEVERITY_ORDER[self.severity]:
+            self.name = finding.title
+            self.severity = finding.severity
+            self.main_finding_id = finding.id
+
+    @staticmethod
+    def add_finding(finding):
+        Problem.remove_finding(int(finding.id))
         if finding.vuln_id_from_tool and finding.severity != "Info":
             redis_client = get_redis_client()
             problem_id = problem_id_b64encode(finding.vuln_id_from_tool)
-            problem = cls.load_from_id(problem_id, redis_client)
+            problem = Problem.load_from_id(problem_id, redis_client)
             if not problem:
-                problem = cls(problem_id)
+                problem = Problem(problem_id)
             if finding.id not in problem.finding_ids:
-                if SEVERITY_ORDER[finding.severity] > SEVERITY_ORDER[problem.severity]:
-                    problem.name = finding.title
-                    problem.severity = finding.severity
+                problem.update_name_sev(finding)
                 problem.finding_ids.add(finding.id)
                 problem.script_ids.add(finding.vuln_id_from_tool)
             problem.persist(redis_client)
             redis_client.hset("id_to_problem", finding.id, problem_id)
 
-    @classmethod
-    def remove_finding(cls, finding_id):
+    @staticmethod
+    def remove_finding(finding_id):
         redis_client = get_redis_client()
         if redis_client.exists("problems") and redis_client.exists("id_to_problem"):
             problem_id = redis_client.hget("id_to_problem", finding_id)
             if problem_id:
-                problem = cls.load_from_id(problem_id, redis_client)
+                problem = Problem.load_from_id(problem_id, redis_client)
                 if problem:
                     # This is why we do not use Redis set functionality to store Findings associated with a Problem.
                     # We need to iterate over Findings anyway whenever a Finding is deleted or changed to update the Problem definition.
                     problem.finding_ids.remove(finding_id)
-                    findings = Finding.objects.filter(id__in=problem.finding_ids)
-                    severity, name, script_ids = "Info", "", set()
-                    for finding in findings:
-                        script_ids.add(finding.vuln_id_from_tool)
-                        if SEVERITY_ORDER[finding.severity] > SEVERITY_ORDER[severity]:
-                            name = finding.title
-                            severity = finding.severity
-                    problem.name = name
-                    problem.severity = severity
-                    problem.script_ids = script_ids
+                    if finding_id == problem.main_finding_id:
+                        problem.severity = "Info"
+                        findings = Finding.objects.filter(id__in=problem.finding_ids)
+                        for finding in findings:
+                            problem.update_name_sev(finding)
+
+                    # renew quantity of script_ids if necessary
+                    remaining_script_ids = {finding.vuln_id_from_tool for finding in Finding.objects.filter(id__in=problem.finding_ids)}
+                    problem.script_ids.intersection_update(remaining_script_ids)
+
                     problem.persist(redis_client)
                 redis_client.hdel("id_to_problem", finding_id)
 
