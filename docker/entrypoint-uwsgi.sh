@@ -5,6 +5,9 @@ set -e  # needed to handle "exit" correctly
 . /reach_database.sh
 . /reach_broker.sh
 
+echo "Running migrations for Risk plugin"
+python3 manage.py migrate risk_plugin --database=risk
+
 # Allow for bind-mount multiple settings.py overrides
 FILES=$(ls /app/docker/extra_settings/* 2>/dev/null || true)
 NUM_FILES=$(echo "$FILES" | wc -w)

@@ -1,0 +1,6 @@
+pandas
+psutil
+scikit-learn
+xgboost
+requests
+watchdog

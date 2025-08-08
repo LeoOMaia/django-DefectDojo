@@ -5,6 +5,7 @@
 {% load humanize %}
 {% load static %}
 {% load i18n %}
+{% load risk_filters %}
 
 {% block add_styles %}
     {{ block.super }}
@@ -221,6 +222,7 @@
                     {% block header_head %}
                         <th>ID</th>
                         <th>Severity</th>
+                        <th>Risk</th>
                         {% if system_settings.enable_finding_sla %}
                         <th>SLA</th>
                         {% endif %}
@@ -290,6 +292,20 @@
                                 {% endif %}
                             </span>
                         </td>
+                        {% get_assessment user_assessments model_inferences finding.id as risk_tuple %}
+                        {% with risk_value=risk_tuple.0 from_model=risk_tuple.1 %}
+                            <td>
+                                <select class="risk-dropdown"
+                                data-finding-id="{{ finding.id }}"
+                                data-style="{% if from_model %}fa-asterisk{% endif %}">
+                                    <option value="NA" {% if risk_value == "NA" %}selected{% endif %}></option>
+                                    <option value="Mild" {% if risk_value == "Mild" %}selected{% endif %}>Mild</option>
+                                    <option value="Moderate" {% if risk_value == "Moderate" %}selected{% endif %}>Moderate</option>
+                                    <option value="Severe" {% if risk_value == "Severe" %}selected{% endif %}>Severe</option>
+                                    <option value="Critical" {% if risk_value == "Critical" %}selected{% endif %}>Critical</option>
+                                </select>
+                            </td>
+                        {% endwith %}
                         {% if system_settings.enable_finding_sla %}
                         <td>
                         {{ finding|finding_sla }}
@@ -955,6 +971,7 @@
               <pre>{{ finding.description|markdown_render|default_if_none:"" }}</pre>
             </div>
         </div>
+        {% include "dojo/snippets/finding_metadata.html" with cves_metadata=cves_metadata metadata_loaded=metadata_loaded %}
 
         {% if files %}
             <div class="row">
@@ -1680,6 +1697,6 @@
             {% endif %}
         });
     </script>
-
+    <script src="{% static 'dojo/js/crivo.js' %}"></script>
     {% include "dojo/filter_js_snippet.html" %}
 {% endblock %}

@@ -56,6 +56,7 @@ from dojo.api_v2.views import (
     RegulationsViewSet,
     ReImportScanView,
     RiskAcceptanceViewSet,
+    RiskTriggerViewSet,
     RoleViewSet,
     SLAConfigurationViewset,
     SonarqubeIssueTransitionViewSet,
@@ -198,6 +199,7 @@ v2_api.register(r"celery", CeleryViewSet, basename="celery")
 add_asset_urls(v2_api)
 add_organization_urls(v2_api)
 
+v2_api.register(r"risk_triggers", RiskTriggerViewSet, basename="risk_trigger")
 ur = []
 ur += asset_urls
 ur += dev_env_urls
@@ -259,7 +261,7 @@ urlpatterns = []
 # sometimes urlpatterns needed be added from local_settings.py before other URLs of core dojo
 if hasattr(settings, "PRELOAD_URL_PATTERNS"):
     urlpatterns += settings.PRELOAD_URL_PATTERNS
-
+urlpatterns += [re_path(r"^finding(?:/open)?/", include("risk_plugin.urls"))]
 urlpatterns += [
     # action history (audit-log page) — defined in dojo/auditlog/ui/urls.py
     re_path(r"^", include("dojo.auditlog.ui.urls")),

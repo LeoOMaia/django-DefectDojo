@@ -1,0 +1,228 @@
+.cve_dashboard {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: min-content;
+    gap: 20px;
+    width: 100%;
+    overflow-y: auto;
+    padding: 15px;
+}
+
+.card_wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.cve_card {
+    position: relative;
+    z-index: 10;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    
+    color: white;
+
+    box-shadow: 2px 2px 5px 0px rgba(0, 0, 0, 0.3);
+    
+    border-radius: 10px;
+    padding: 0.5em 1em;
+    --hover_color: rgb(222, 222, 222);
+    --greenbg_text_color: #ffffff;
+    --greenbg_text_hover_color: #ffffff;
+    --redbg_text_color: #ffffff;
+    --redbg_text_hover_color: #ffffff;
+    --yellowbg_text_color: #ffffff;
+    --yellowbg_text_hover_color: #ffffff;
+}
+
+.cve_card.in_kev {
+    border: 3px solid #333333;
+}
+
+.cve_card a {
+    color: white;
+    text-decoration: none;
+}
+
+.cve_card a:hover {
+    color: var(--hover_color);
+    text-decoration: underline;
+}
+
+.cve_card_header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.cve_id {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 800;
+    color: white;
+}
+
+.score_wrapper {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    font-family: inherit;
+    font-size: 12px;
+    gap: 10px;
+}
+
+.cve_card_body {
+    font-size: 12px;
+    color: white;
+}
+
+.cve_card_body_top {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    min-height: 17.5px;
+    height: auto;
+}
+
+.cve_card_body_bottom {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 17.5px;
+    height: auto;
+}
+
+.cwes {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+    font-size: 12px;
+    color: #252525;
+}
+
+.cwe {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    gap: 3px;
+}
+
+.card_dropdown {
+    position: relative;
+    z-index: 1;
+    top: -10px;
+    background: white;
+    border: #546474 1px solid;
+    border-radius: 0 0 15px 15px;
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+    /* margin-top: -10px; */
+    transition: all 0.35s ease;
+    transform-origin: top;
+  }
+
+.dropdown_content {
+    padding: 15px;
+    padding-top: 20px;
+}
+
+.dropdown-toggle[aria-expanded="false"] .fa-chevron-down {
+    display: inline;
+}
+
+.dropdown-toggle[aria-expanded="false"] .fa-chevron-up {
+    display: none;
+}
+
+.dropdown-toggle[aria-expanded="true"] .fa-chevron-down {
+    display: none;
+}
+
+.dropdown-toggle[aria-expanded="true"]  .fa-chevron-up {
+    display: inline;
+}
+
+.load-more-cves {
+    display: block;
+    margin: 20px auto;
+    padding: 10px 20px;
+    background-color: #58BCE2;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.load-more-cves:hover {
+    background-color: #3a92b2;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    transform: translateY(-2px);
+}
+
+.load-more-cves:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.load-more-cves.loading {
+    position: relative;
+    padding-left: 40px;
+}
+
+.load-more-cves.loading:before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    margin-top: -7px;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spinner 0.8s linear infinite;
+}
+.load-more-cves .counter {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    background-color: white;
+    color: #337ab7;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+@keyframes spinner {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.cve_dashboard .card {
+    transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.cve_dashboard .card.appearing {
+    opacity: 0;
+    transform: translateY(20px);
+}
+
+.cve_dashboard .card.appeared {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.card_dropdown .field {
+    font-family: inherit;
+    font-size: 12px
+}

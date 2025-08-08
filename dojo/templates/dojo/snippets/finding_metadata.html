@@ -1,0 +1,168 @@
+{% load i18n %}
+{% load static %}
+
+{% block add_css %}
+  <link rel="stylesheet" href="{% static "dojo/css/cve_metadata.css" %}">
+{% endblock %}
+
+<div class="panel panel-default">
+  <div class="panel-heading">
+    <h4>
+      {% trans "Metadata" %}
+      <span class="pull-right">
+        <a data-toggle="collapse" href="#test_panel">
+          <i class="glyphicon glyphicon-chevron-{% if cves_metadata %}up{%else%}down{%endif%}"></i>
+        </a>
+      </span>
+    </h4>
+  </div>
+  <div id="test_panel" class="panel-body finding-description collapse {% if cves_metadata %}in{% endif %}">
+    {% if metadata_loaded %}
+      <div class="kev_card_disclaimer">
+        * {% trans "Cards with a black border have a KEV (Known Exploited Vulnerability) associated with them!" %}
+      </div>
+      <div class="cve_dashboard">
+          {% for cve in cves_metadata %}
+            {% include "dojo/snippets/card.html" with cve=cve %}
+          {% endfor %}
+      </div>
+    {%else%} 
+      {% trans "No CVEs for this finding" %}
+    {%endif%}
+  </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Find all CVE cards within the dashboard
+  const cveCards = Array.from(document.querySelectorAll('.cve_dashboard .card_wrapper'));
+  
+  // If we have more than 8 cards, implement pagination
+  if (cveCards.length > 8) {
+    // Add appearing class to all cards (for animation)
+    cveCards.forEach(card => {
+      card.classList.add('appearing');
+    });
+    
+    // Function to animate cards appearing
+    function animateCards(startIdx, endIdx) {
+      let delay = 0;
+      for (let i = startIdx; i < endIdx; i++) {
+        if (i < cveCards.length) {
+          const card = cveCards[i];
+          // Show the card
+          card.style.display = '';
+          
+          // Animate after a small delay for each card
+          setTimeout(() => {
+            card.classList.remove('appearing');
+            card.classList.add('appeared');
+          }, delay);
+          
+          delay += 50; // Stagger the animations
+        }
+      }
+    }
+    
+    // Initially hide all cards beyond the first 8
+    for (let i = 8; i < cveCards.length; i++) {
+      cveCards[i].style.display = 'none';
+    }
+    
+    // Animate initial cards
+    animateCards(0, 8);
+    
+    // Set currentlyVisible to track how many cards are shown
+    let currentlyVisible = 8;
+    const remaining = cveCards.length - currentlyVisible;
+    
+    // Create and add a "Load More" button
+    const loadMoreBtn = document.createElement('button');
+    loadMoreBtn.className = 'load-more-cves';
+    
+    // Add counter span to show remaining cards
+    const textSpan = document.createElement('span');
+    textSpan.textContent = 'Load More CVEs';
+    
+    const counterSpan = document.createElement('span');
+    counterSpan.className = 'counter';
+    counterSpan.textContent = remaining;
+    
+    loadMoreBtn.appendChild(textSpan);
+    loadMoreBtn.appendChild(counterSpan);
+    
+    loadMoreBtn.addEventListener('click', function() {
+      this.classList.add('loading');
+      
+      this.disabled = true;
+      
+      setTimeout(() => {
+        const nextBatch = Math.min(currentlyVisible + 8, cveCards.length);
+        
+
+        animateCards(currentlyVisible, nextBatch);
+        equalizeCardHeights()
+        currentlyVisible = nextBatch;
+        
+
+        const newRemaining = cveCards.length - currentlyVisible;
+        counterSpan.textContent = newRemaining;
+        
+        if (currentlyVisible >= cveCards.length) {
+          this.style.display = 'none';
+        } else {
+          this.classList.remove('loading');
+          this.disabled = false;
+        }
+      }, 500);
+    });
+    
+    const cveDashboard = document.querySelector('.cve_dashboard');
+    cveDashboard.parentNode.insertBefore(loadMoreBtn, cveDashboard.nextSibling);
+  }
+});
+</script>
+<script>
+    // Run this after the page loads or when the cards are rendered
+  function equalizeCardHeights() {
+    // Get all rows in the dashboard
+    const dashboard = document.querySelector('.cve_dashboard');
+    const numCols = 4; // Number of columns in your grid
+    
+    // Get all cards
+    const cards = document.querySelectorAll('.cve_card');
+    
+    // Process cards row by row
+    for (let i = 0; i < cards.length; i += numCols) {
+      // Get cards in current row
+      const rowCards = Array.from(cards).slice(i, i + numCols);
+      
+      // Find the tallest card in this row
+      let maxHeight = 0;
+      rowCards.forEach(card => {
+        // Reset height to auto to get natural height
+        card.style.height = 'auto';
+        const height = card.offsetHeight;
+        maxHeight = Math.max(maxHeight, height);
+      });
+      
+      // Set all cards in this row to the maximum height
+      rowCards.forEach(card => {
+        card.style.height = maxHeight + 'px';
+      });
+    }
+  }
+
+  // Run on page load
+  window.addEventListener('load', equalizeCardHeights);
+
+  // Run when window is resized
+  window.addEventListener('resize', equalizeCardHeights);
+
+  // Run when any dropdown is opened or closed
+  document.querySelectorAll('.dropdown-toggle').forEach(toggle => {
+    toggle.addEventListener('click', function() {
+      // Give time for collapse animation to finish
+      setTimeout(equalizeCardHeights, 400);
+    });
+  });
+</script>

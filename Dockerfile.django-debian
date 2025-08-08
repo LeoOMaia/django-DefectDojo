@@ -96,6 +96,7 @@ RUN \
   chmod g=u dojo/migrations && \
   true
 USER root
+
 RUN \
     addgroup --gid ${gid} ${appuser} && \
     adduser --system --no-create-home --disabled-password --gecos '' \
@@ -113,6 +114,19 @@ RUN \
     # To avoid warning: (staticfiles.W004) The directory '/app/components/node_modules' in the STATICFILES_DIRS setting does not exist.
     mkdir -p components/node_modules && \
     chown ${appuser} components/node_modules
+
+RUN \
+    mkdir -p /app/crivo-metadata && \
+    chmod -R 775 /app/crivo-metadata && \
+    chown -R ${appuser}:${appuser} /app/crivo-metadata
+
+# Configure the risk_plugin and dependencies
+COPY risk_plugin/ ./risk_plugin/
+RUN \
+    apt-get -y update && \
+    apt-get -y install --no-install-recommends sqlite3 && \
+    rm -rf /var/lib/apt/lists
+
 USER ${uid}
 ENV \
   # Only variables that are not defined in settings.dist.py

@@ -1,0 +1,90 @@
+{% load metadata_filters %}
+<div class="card_wrapper">
+
+    <div class="cve_card {% if cve.cve_metadata.in_kev %}in_kev{% endif %}
+        bg-vuln-{% if cve.cve_metadata.epss_percentile < 0.4 %}low
+        {% elif cve.cve_metadata.epss_percentile < 0.7 %}medium
+        {% elif cve.cve_metadata.epss_percentile < 0.9 %}high
+        {% else %}critical
+        {% endif %}">
+        <div class="cve_card_header">
+            <div class="cve_card_id">
+                <div class="cve_id">
+                <a class="cve_id" href="{{ cve.cve_id|cve_url }}" target="_blank">
+                        {{ cve.cve_id }} <i class="fa-solid fa-arrow-up-right-from-square"></i></h5>
+                    </a>
+                </div>
+            </div>
+            <div class="cve_card_scores">
+                <div class="score_wrapper">
+                    <div class="score_label">
+                        EPSS
+                    </div>
+                    <div class="score_value">
+                        {{ cve.cve_metadata.epss_score }}
+                    </div>
+                </div>
+                <div class="score_wrapper">
+                    <div class="score_label">
+                        {{cve.cve_metadata.cvss_label}}
+                    </div>
+                    <div class="score_value">
+                        {{ cve.cve_metadata.cvss_score }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="cve_card_body">
+            <div class="cve_card_body_top">
+                {% for class in cve.cve_metadata.cve_classes %}
+                <div class="classification">
+                    {{ class }}
+                </div>
+                {% endfor %}
+
+            </div>
+
+            <div class="cve_card_body_bottom">
+                <div class="cwes">
+                    {% for cwe in cve.cve_metadata.cwes %}
+                    <div class="cwe">
+                        <a href="{{cwe.0|cwe_url}}">
+                            {{cwe.0|upper}} <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="dropdown_button">
+                    {% if cve.cve_metadata.cpes|length > 0 %}
+                    <a class="dropdown-toggle" data-toggle="collapse" href="#cpe_dropdown_menu_{{ cve.cve_id }}"
+                        aria-haspopup="true" aria-expanded="false">
+                        <i class="fa-solid fa-chevron-down"></i>
+                        <i class="fa-solid fa-chevron-up"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <div id="cpe_dropdown_menu_{{ cve.cve_id }}" class="card_dropdown collapse">
+        {% for cpe in cve.cve_metadata.cpes|remove_cpe_duplicates %}
+        <div class="dropdown_content">
+            <div class="cpe-item">
+                <div class="cpe-details">
+                    {% with vendor=cpe.0 product=cpe.1 %}
+                    {% if vendor != "*" and product != "*"%}
+                    <div class="cpe-field">
+                        <span class="field">
+                            {{ vendor|split:"_"|join:" "|title }} {{product|split:"_"|join:" "|title}}
+                        </span>
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>

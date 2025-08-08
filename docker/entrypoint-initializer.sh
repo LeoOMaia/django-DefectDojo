@@ -23,4 +23,21 @@ umask 0002
 wait_for_database_to_be_reachable
 python manage.py complete_initialization
 
+echo $CRIVO_STORAGE_PATH
+mkdir -p "$CRIVO_STORAGE_PATH"
+cat <<EOD | python manage.py shell
+import os
+import sys
+from django.contrib.auth.models import User
+from rest_framework.authtoken.models import Token
+crivo_path = os.getenv('CRIVO_STORAGE_PATH', '/app/crivo-metadata')
+user = User.objects.filter(username=os.getenv('DD_ADMIN_USER', 'admin')).first()
+if not user:
+    print("Admin user not found. Exiting.")
+    sys.exit(1)
+token, created = Token.objects.get_or_create(user=user)
+with open(os.path.join(crivo_path, "api-token.env"), "w") as f:
+    f.write(f"TOKEN_API_KEY={token.key}\n")
+EOD
+
 exec "$@"

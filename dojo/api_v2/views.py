@@ -1,6 +1,7 @@
 import base64
 import logging
 import mimetypes
+import pickle
 from datetime import datetime
 from pathlib import Path
 
@@ -89,6 +90,7 @@ from dojo.group.queries import (
 from dojo.importers.auto_create_context import AutoCreateContextManager
 from dojo.jira import services as jira_services
 from dojo.labels import get_labels
+from dojo.notifications.models import Notification_Webhooks
 from dojo.models import (
     Announcement,
     Answer,
@@ -144,6 +146,7 @@ from dojo.models import (
     User,
     UserContactInfo,
 )
+from dojo.notifications.helper import create_notification
 from dojo.product.queries import (
     get_authorized_app_analysis,
     get_authorized_dojo_meta,
@@ -183,6 +186,7 @@ from dojo.utils import (
     purge_celery_queue,
     purge_celery_queue_by_task_name,
 )
+from risk_plugin.models import Risk
 
 logger = logging.getLogger(__name__)
 
@@ -3668,3 +3672,76 @@ class AnnouncementViewSet(
 
     def get_queryset(self):
         return Announcement.objects.all().order_by("id")
+
+
+class NotificationWebhooksViewSet(
+    PrefetchDojoModelViewSet,
+):
+    serializer_class = serializers.NotificationWebhooksSerializer
+    queryset = Notification_Webhooks.objects.all()
+    filter_backends = (DjangoFilterBackend,)
+    filterset_fields = "__all__"
+    permission_classes = (permissions.IsSuperUser, DjangoModelPermissions)  # TODO: add permission also for other users
+
+
+class RiskTriggerViewSet(viewsets.ViewSet):
+    permission_classes = (IsAuthenticated,)
+
+    def create(self, request):
+        # Triggered by a model container after a user requests predictions for unrated findings.
+        # The model uses the user's past assessments to generate new predictions, saves them to a pickle file,
+        # and sends this path via an authenticated API request (with the user's token) to this endpoint.
+        #
+        # This view is protected by IsAuthenticated, ensuring only valid users or services can call it.
+        # It validates and imports the predictions, ensures they belong to a single user, notifies them,
+        # and deletes the file after processing.
+
+        path_new_inferences = request.data.get("inferences", "")
+
+        if not Path(path_new_inferences).is_file():
+            return Response({"error": "File not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with Path.open(path_new_inferences, "rb") as file:
+                data = pickle.load(file)
+            user_ids = set()
+            inferences = []
+            timestamp = timezone.now()
+            for item in data:
+                user_ids.add(item["user_id"])
+                inferences.append(
+                    Risk(
+                        finding_id=item["id"],
+                        user_id=item["user_id"],
+                        risk_class=item["predicted_risk_label"],
+                        timestamp=timestamp,
+                        is_model_inference=True,
+                    ),
+                )
+            if not user_ids or len(user_ids) > 1:
+                return Response(
+                    {"error": "More than one user ID found or no user ID provided."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            imported_count = len(inferences)
+            Risk.objects.bulk_create(inferences)
+
+            username = Dojo_User.objects.get(id=list(user_ids)[0]).username
+            logger.info(f"Model inferences have been saved by user {user_ids}.")
+            create_notification(
+                event="other",
+                title="Model inferences have been saved.",
+                recipients=[username],
+            )
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Attempt to delete the file after processing
+        try:
+            Path(path_new_inferences).unlink()
+            logger.info(f"File {path_new_inferences} has been deleted after processing.")
+        except OSError as e:
+            logger.error(f"Error deleting file {path_new_inferences}: {e}")
+
+        return Response({"imported": imported_count}, status=status.HTTP_200_OK)

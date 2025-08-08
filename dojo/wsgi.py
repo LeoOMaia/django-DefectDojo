@@ -18,6 +18,8 @@ import os
 
 from django.core.wsgi import get_wsgi_application
 
+from dojo.crivo.datastore import DataStore
+
 logger = logging.getLogger(__name__)
 
 # We defer to a DJANGO_SETTINGS_MODULE already in the environment. This breaks
@@ -25,6 +27,11 @@ logger = logging.getLogger(__name__)
 # mod_wsgi daemon mode with each site in its own daemon process, or use
 # os.environ["DJANGO_SETTINGS_MODULE"] = "dojo.settings"
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "dojo.settings.settings")
+
+# This starts the DataStore, a singleton class responsible for storing
+# finding metadata and provide it application wide
+ds = DataStore()
+ds.load()
 
 # This application object is used by any WSGI server configured to use this
 # file. This includes Django's development server, if the WSGI_APPLICATION

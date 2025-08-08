@@ -2184,6 +2184,17 @@ class FindingFilterWithoutObjectLookups(FindingFilterHelper, FindingTagStringFil
 class FindingFilter(FindingFilterHelper, FindingTagFilter):
     reporter = ModelMultipleChoiceFilter(queryset=Dojo_User.objects.none())
     reviewers = ModelMultipleChoiceFilter(queryset=Dojo_User.objects.none())
+    risk = MultipleChoiceFilter(
+        choices=[
+            ("NA", "Nothing selected"),
+            ("Mild", "Mild"),
+            ("Moderate", "Moderate"),
+            ("Severe", "Severe"),
+            ("Critical", "Critical"),
+        ],
+        method="filter_risk",
+        label="Risk",
+    )
     test__engagement__product__prod_type = ModelMultipleChoiceFilter(
         queryset=Product_Type.objects.none(),
         label=labels.ORG_FILTERS_LABEL)
@@ -2196,6 +2207,9 @@ class FindingFilter(FindingFilterHelper, FindingTagFilter):
     test = ModelMultipleChoiceFilter(
         queryset=Test.objects.none(),
         label="Test")
+
+    def filter_risk(self, queryset, name, value):
+        return queryset
 
     if is_finding_groups_enabled():
         finding_group = ModelMultipleChoiceFilter(
