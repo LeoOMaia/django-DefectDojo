@@ -474,7 +474,7 @@
                     </table>
                 </div>
                 <div class="clearfix">
-                    {% include "dojo/paging_snippet.html" with page=finding_group_findings %}
+                    {% include "dojo/paging_snippet.html" with page=findings %}
                 </div>
             {% else %}
                 <div id="no_findings">
@@ -578,7 +578,8 @@
                         function() { $(this).popover('show'); }, // hover
                         function() { $(this).popover('hide'); } // unhover
                     );
-                },Reorder: true,
+                },
+                colReorder: true,
                 columns: datatables_columns,
                 order: [],
                 columnDefs: [

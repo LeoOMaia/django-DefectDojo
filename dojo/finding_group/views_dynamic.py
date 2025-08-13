@@ -7,7 +7,13 @@ from django.views import View
 
 from dojo.authorization.roles_permissions import Permissions
 from dojo.filters import DynamicFindingGroupsFilter, DynamicFindingGroupsFindingsFilter
-from dojo.finding_group.redis import SEVERITY_ORDER, actual_mode, dict_finding_groups_findings, set_mode
+from dojo.finding_group.redis import (
+    SEVERITY_ORDER,
+    GroupMode,
+    get_user_mode,
+    load_or_rebuild_finding_groups,
+    set_user_mode,
+)
 from dojo.forms import FindingBulkUpdateForm
 from dojo.models import Finding, Global_Role
 from dojo.product.queries import get_authorized_products
@@ -94,12 +100,19 @@ class ListDynamicFindingGroups(View):
     def get(self, request: HttpRequest):
         global_role = Global_Role.objects.filter(user=request.user).first()
         products = get_authorized_products(Permissions.Product_View)
-        mode = request.GET.get("mode", None)
-        if mode:
-            set_mode(mode)
+        mode_str = request.GET.get("mode", None)
+        user_id = request.user.id
+        if mode_str:
+            try:
+                mode = GroupMode(mode_str)
+                set_user_mode(user_id, mode)
+            except ValueError:
+                if mode_str is not None:
+                    logger.warning(f"Invalid mode: {mode_str}")
+                mode = get_user_mode(user_id)
         else:
-            mode = actual_mode()
-        self.finding_groups_map = dict_finding_groups_findings(mode=mode)
+            mode = get_user_mode(user_id)
+        self.finding_groups_map = load_or_rebuild_finding_groups(mode=mode) if mode else {}
         if request.user.is_superuser or (global_role and global_role.role):
             finding_groups = self.get_finding_groups(request)
         elif products.exists():
@@ -108,7 +121,7 @@ class ListDynamicFindingGroups(View):
 
         context = {
             "filter_name": self.filter_name,
-            "mode": mode,
+            "mode": mode.value if mode else None,
             "filtered": DynamicFindingGroupsFilter(request.GET),
             "finding_groups": paginated_finding_groups,
         }
@@ -209,8 +222,8 @@ class DynamicFindingGroupsFindings(View):
         self.finding_group_id = finding_group_id
         global_role = Global_Role.objects.filter(user=request.user).first()
         products = get_authorized_products(Permissions.Product_View)
-        mode = actual_mode()
-        self.finding_groups_map = dict_finding_groups_findings(mode=mode)
+        mode = get_user_mode(request.user.id)
+        self.finding_groups_map = load_or_rebuild_finding_groups(mode=mode) if mode else {}
         if request.user.is_superuser or (global_role and global_role.role):
             finding_group_name, findings = self.get_findings(request)
         elif products.exists():
