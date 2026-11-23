@@ -21,6 +21,7 @@ from dojo.models import Engagement, Finding, Finding_Template, Languages, Produc
 from dojo.product.queries import get_authorized_app_analysis, get_authorized_products
 from dojo.test.queries import get_authorized_tests
 from dojo.utils import add_breadcrumb, get_page_items, get_system_setting, get_words_for_field
+from risk_plugin.utils import get_model_inferences, get_user_assessments
 
 logger = logging.getLogger(__name__)
 
@@ -400,6 +401,8 @@ def simple_search(request):
         "show_product_column": True,
         "generic": generic,
         "bulk_edit_form": FindingBulkUpdateForm(request.GET),
+        "user_assessments": get_user_assessments(request.user.id) if findings is not None else {},
+        "model_inferences": get_model_inferences(request.user.id) if findings is not None else {},
         })
 
     if cookie:

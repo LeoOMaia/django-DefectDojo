@@ -5,6 +5,7 @@ set -eu
 mkdir -p "$CRIVO_STORAGE_PATH/model/user_assessments"
 mkdir -p "$CRIVO_STORAGE_PATH/model/finding_features"
 mkdir -p "$CRIVO_STORAGE_PATH/model/predict_inferences"
+mkdir -p "$CRIVO_STORAGE_PATH/model/status"
 
 # Permissions: 
 # 755 - owner can read/write/execute, others can read/execute
@@ -13,5 +14,6 @@ chmod 755 "$CRIVO_STORAGE_PATH/model"
 chmod 777 "$CRIVO_STORAGE_PATH/model/predict_inferences"
 chmod 777 "$CRIVO_STORAGE_PATH/model/user_assessments"
 chmod 777 "$CRIVO_STORAGE_PATH/model/finding_features"
+chmod 777 "$CRIVO_STORAGE_PATH/model/status"
 
 python3 /usr/src/app/model/update_model.py

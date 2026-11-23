@@ -26,6 +26,7 @@ from dojo.jira import services as jira_services
 from dojo.models import Engagement, Finding, Finding_Group, GITHUB_PKey, Global_Role, Product
 from dojo.product.queries import get_authorized_products
 from dojo.utils import Product_Tab, add_breadcrumb, get_page_items, get_setting, get_system_setting, get_words_for_field
+from risk_plugin.utils import get_model_inferences, get_user_assessments
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +119,8 @@ def view_finding_group(request, fgid):
         "jira_project": jira_project,
         "bulk_edit_form": bulk_edit_form,
         "edit_finding_group_form": edit_finding_group_form,
+        "user_assessments": get_user_assessments(request.user.id),
+        "model_inferences": get_model_inferences(request.user.id),
     })
 
 

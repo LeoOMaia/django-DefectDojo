@@ -143,6 +143,19 @@ RISK_LABELS = {
     "Critical": 4,
 }
 
+
+def _get_effective_risk(finding_id, user_assessments, model_inferences):
+    key = str(finding_id)
+    if isinstance(user_assessments, dict) and key in user_assessments:
+        user_risk = user_assessments[key]
+        if user_risk:
+            return user_risk
+    if isinstance(model_inferences, dict) and key in model_inferences:
+        model_risk = model_inferences[key]
+        if model_risk:
+            return model_risk
+    return "NA"
+
 logger = logging.getLogger(__name__)
 
 
@@ -377,21 +390,43 @@ class ListFindings(View, BaseListFindings):
         return request, context
 
     def filter_findings_by_risk(self, findings, user_assessments, model_inferences, risk_filter):
-        return findings.filter(
-                id__in=[
-                    fid for fid in findings.values_list("id", flat=True)
-                    if user_assessments.get(str(fid), model_inferences.get(str(fid), "NA")) in risk_filter
-                ],
-            )
+        risk_map = {}
+        all_fids = set(user_assessments.keys()) | set(model_inferences.keys())
+        for fid_str in all_fids:
+            with contextlib.suppress(ValueError, TypeError):
+                risk_map[int(fid_str)] = _get_effective_risk(fid_str, user_assessments, model_inferences)
+
+        if "NA" in risk_filter:
+            excluded_ids = [fid for fid, risk in risk_map.items() if risk not in risk_filter]
+            return findings.exclude(id__in=excluded_ids) if excluded_ids else findings
+
+        matching_ids = [fid for fid, risk in risk_map.items() if risk in risk_filter]
+        return findings.filter(id__in=matching_ids)
 
     def sort_findings_by_risk(self, findings, user_assessments, model_inferences, *, reverse=False):
-        return sorted(
-            findings,
-            key=lambda x: RISK_LABELS.get(
-                user_assessments.get(str(x.id), model_inferences.get(str(x.id), "NA")),
-                0,
-            ),
-            reverse=reverse,
+        score_to_ids = {1: [], 2: [], 3: [], 4: []}
+        all_fids = set(user_assessments.keys()) | set(model_inferences.keys())
+        for fid_str in all_fids:
+            risk = _get_effective_risk(fid_str, user_assessments, model_inferences)
+            score = RISK_LABELS.get(risk, 0)
+            if score in score_to_ids:
+                with contextlib.suppress(ValueError, TypeError):
+                    score_to_ids[score].append(int(fid_str))
+
+        whens = [
+            When(id__in=fids, then=Value(score))
+            for score, fids in score_to_ids.items()
+            if fids
+        ]
+        risk_expr = (
+            Case(*whens, default=Value(0), output_field=models.IntegerField())
+            if whens
+            else Value(0, output_field=models.IntegerField())
+        )
+        return findings.annotate(risk_order=risk_expr).order_by(
+            "-risk_order" if reverse else "risk_order",
+            "numerical_severity",
+            "id",
         )
 
     def get(self, request: HttpRequest, product_id: int | None = None, engagement_id: int | None = None, test_id: int | None = None):

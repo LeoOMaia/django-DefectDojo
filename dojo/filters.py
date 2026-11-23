@@ -1816,6 +1816,20 @@ class PercentageFilter(NumberFilter):
         return queryset.filter(**lookup_kwargs)
 
 
+class FindingOrderingFilter(OrderingFilter):
+    def filter(self, qs, value):
+        if value in {None, ""}:
+            return qs
+        if isinstance(value, (list, tuple)):
+            filtered_values = [v for v in value if v not in {"risk", "-risk"}]
+            if not filtered_values:
+                return qs
+            return super().filter(qs, filtered_values)
+        if value in {"risk", "-risk"}:
+            return qs
+        return super().filter(qs, value)
+
+
 class FindingFilterHelper(FilterSet):
     title = CharFilter(lookup_expr="icontains")
     date = DateRangeFilter(field_name="date", label="Date Discovered")
@@ -1946,8 +1960,22 @@ class FindingFilterHelper(FilterSet):
     kev_date = DateFilter(field_name="kev_date", lookup_expr="exact", label="Added to KEV On")
     kev_before = DateFilter(field_name="kev_date", lookup_expr="lt", label="Added to KEV Before")
     kev_after = DateFilter(field_name="kev_date", lookup_expr="gt", label="Added to KEV After")
+    risk = MultipleChoiceFilter(
+        choices=[
+            ("NA", "Nothing selected"),
+            ("Mild", "Mild"),
+            ("Moderate", "Moderate"),
+            ("Severe", "Severe"),
+            ("Critical", "Critical"),
+        ],
+        method="filter_risk",
+        label="Risk",
+    )
 
-    o = OrderingFilter(
+    def filter_risk(self, queryset, name, value):
+        return queryset
+
+    o = FindingOrderingFilter(
         # tuple-mapping retains order
         fields=(
             ("numerical_severity", "numerical_severity"),
@@ -1969,6 +1997,7 @@ class FindingFilterHelper(FilterSet):
             ("known_exploited", "known_exploited"),
             ("ransomware_used", "ransomware_used"),
             ("kev_date", "kev_date"),
+            ("risk", "risk"),
         ),
         field_labels={
             "numerical_severity": "Severity",
@@ -1986,6 +2015,7 @@ class FindingFilterHelper(FilterSet):
             "sla_age_days": "SLA age (days)",
             "planned_remediation_date": "Planned Remediation",
             "planned_remediation_version": "Planned remediation version",
+            "risk": "Risk",
         },
     )
 
@@ -2184,17 +2214,6 @@ class FindingFilterWithoutObjectLookups(FindingFilterHelper, FindingTagStringFil
 class FindingFilter(FindingFilterHelper, FindingTagFilter):
     reporter = ModelMultipleChoiceFilter(queryset=Dojo_User.objects.none())
     reviewers = ModelMultipleChoiceFilter(queryset=Dojo_User.objects.none())
-    risk = MultipleChoiceFilter(
-        choices=[
-            ("NA", "Nothing selected"),
-            ("Mild", "Mild"),
-            ("Moderate", "Moderate"),
-            ("Severe", "Severe"),
-            ("Critical", "Critical"),
-        ],
-        method="filter_risk",
-        label="Risk",
-    )
     test__engagement__product__prod_type = ModelMultipleChoiceFilter(
         queryset=Product_Type.objects.none(),
         label=labels.ORG_FILTERS_LABEL)
@@ -2207,9 +2226,6 @@ class FindingFilter(FindingFilterHelper, FindingTagFilter):
     test = ModelMultipleChoiceFilter(
         queryset=Test.objects.none(),
         label="Test")
-
-    def filter_risk(self, queryset, name, value):
-        return queryset
 
     if is_finding_groups_enabled():
         finding_group = ModelMultipleChoiceFilter(

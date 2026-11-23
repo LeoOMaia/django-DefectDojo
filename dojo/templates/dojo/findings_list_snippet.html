@@ -61,8 +61,8 @@
                         <button id="update-risks-btn" class="btn btn-primary">Update Risks</button>
                         <div>
                             <div id="loading-spinner" style="display: none; margin-top: 8px;">
-                                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                Updating...
+                                <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+                                <span id="loading-spinner-text">Updating...</span>
                             </div>
                             <span id="update-status" style="display: block; margin-top: 8px;"></span>
                         </div>
@@ -344,7 +344,6 @@
                                     <th>
                                         {% dojo_sort request 'Risk' 'risk' %}
                                     </th>
-                                    <th class="nowrap">
                                     <th scope="col">
                                         {% trans "Known Exploited" %}
                                     </th>
@@ -658,15 +657,27 @@
                                         {% get_assessment user_assessments model_inferences finding.id as risk_tuple %}
                                         {% with risk_value=risk_tuple.0 from_model=risk_tuple.1 %}
                                             <td>
-                                                <select class="risk-dropdown"
-                                                data-finding-id="{{ finding.id }}"
-                                                data-style="{% if from_model %}fa-asterisk{% endif %}">
-                                                    <option value="NA" {% if risk_value == "NA" %}selected{% endif %}></option>
-                                                    <option value="Mild" {% if risk_value == "Mild" %}selected{% endif %}>Mild</option>
-                                                    <option value="Moderate" {% if risk_value == "Moderate" %}selected{% endif %}>Moderate</option>
-                                                    <option value="Severe" {% if risk_value == "Severe" %}selected{% endif %}>Severe</option>
-                                                    <option value="Critical" {% if risk_value == "Critical" %}selected{% endif %}>Critical</option>
-                                                </select>
+                                                <div class="risk-cell" style="display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;">
+                                                    <select class="risk-dropdown"
+                                                    data-finding-id="{{ finding.id }}"
+                                                    data-from-model="{% if from_model %}true{% else %}false{% endif %}"
+                                                    data-style="{% if from_model %}fa-asterisk{% endif %}">
+                                                        <option value="NA" {% if risk_value == "NA" or not risk_value %}selected{% endif %}></option>
+                                                        <option value="Mild" {% if risk_value == "Mild" %}selected{% endif %}>Mild</option>
+                                                        <option value="Moderate" {% if risk_value == "Moderate" %}selected{% endif %}>Moderate</option>
+                                                        <option value="Severe" {% if risk_value == "Severe" %}selected{% endif %}>Severe</option>
+                                                        <option value="Critical" {% if risk_value == "Critical" %}selected{% endif %}>Critical</option>
+                                                    </select>
+                                                    {% if from_model and risk_value and risk_value != "NA" %}
+                                                        <button type="button"
+                                                                class="btn btn-xs btn-default confirm-risk-btn"
+                                                                data-finding-id="{{ finding.id }}"
+                                                                title="{% trans 'Confirm model inference as analyst assessment' %}"
+                                                                aria-label="{% trans 'Confirm risk inference' %}">
+                                                            <i class="fa-solid fa-check text-success"></i>
+                                                        </button>
+                                                    {% endif %}
+                                                </div>
                                             </td>
                                         {% endwith %}
                                         <td class="nowrap text-right">
@@ -840,8 +851,11 @@
                         if (type === 'sort') {
                             var api = new $.fn.dataTable.Api(meta.settings);
                             var td = api.cell({row: meta.row, column: meta.col}).node();
-                            var selected = $(td).find('select option:selected').val();
-                            return order[selected] !== undefined ? order[selected] : 999;
+                            var selected = $(td).find('select').val() || "NA";
+                            return order[selected] !== undefined ? order[selected] : 0;
+                        }
+                        return data;
+                    }},
                     { "data": "known_exploited", },
                     { "data": "used_ransomware", },
                     { "data": "kev_date", render: function(data, type, row, meta) {
@@ -932,6 +946,7 @@
                 'severity',
                 'finding',
                 'cwe',
+                'risk',
                 'found_date',
                 'finding_age',
                 'finding_sla',
@@ -1269,32 +1284,116 @@
     </script>
     <script src="{% static 'dojo/js/crivo.js' %}"></script>
     <script>
-        document.getElementById("update-risks-btn").addEventListener("click", function () {
+        (function () {
+            const updateBtn = document.getElementById("update-risks-btn");
+            if (!updateBtn) {
+                return;
+            }
+
             const spinner = document.getElementById("loading-spinner");
-            const status = document.getElementById("update-status");
-    
-            spinner.style.display = "inline-block";
-            status.textContent = "";
-    
-            fetch("{% url 'update_inferences' %}", {
-                method: "GET",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value
+            const spinnerText = document.getElementById("loading-spinner-text");
+            const statusEl = document.getElementById("update-status");
+
+            function getCsrfToken() {
+                const input = document.querySelector("[name=csrfmiddlewaretoken]");
+                if (input && input.value) {
+                    return input.value;
                 }
-            })
-            .then(response => response.json())
-            .then(data => {
-                status.textContent = data.message || "Done!";
-            })
-            .catch(error => {
-                status.textContent = "Error updating risks.";
-                console.error("Error:", error);
-            })
-            .finally(() => {
-                spinner.style.display = "none";
+                const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+                return match ? decodeURIComponent(match[1]) : "";
+            }
+
+            function pollInferenceStatus(jobId, startedAt, attemptsLeft) {
+                if (attemptsLeft <= 0) {
+                    spinner.style.display = "none";
+                    updateBtn.disabled = false;
+                    statusEl.textContent = "Model update timed out. Please refresh in a moment.";
+                    return;
+                }
+
+                const params = new URLSearchParams({
+                    job_id: jobId || "",
+                    started_at: startedAt || ""
+                });
+
+                fetch("{% url 'inference_status' %}?" + params.toString(), {
+                    method: "GET",
+                    headers: { "Accept": "application/json" }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === "completed") {
+                        spinner.style.display = "none";
+                        statusEl.textContent = data.message || "Inferences updated! Reloading...";
+                        window.location.reload();
+                    } else if (data.status === "error") {
+                        spinner.style.display = "none";
+                        updateBtn.disabled = false;
+                        statusEl.textContent = data.message || "Error updating risks.";
+                    } else {
+                        if (spinnerText && data.message) {
+                            spinnerText.textContent = data.message;
+                        }
+                        setTimeout(() => pollInferenceStatus(jobId, startedAt, attemptsLeft - 1), 1000);
+                    }
+                })
+                .catch(error => {
+                    spinner.style.display = "none";
+                    updateBtn.disabled = false;
+                    statusEl.textContent = "Error checking update status.";
+                    console.error("Error:", error);
+                });
+            }
+
+            updateBtn.addEventListener("click", function () {
+                updateBtn.disabled = true;
+                spinner.style.display = "inline-block";
+                if (spinnerText) {
+                    spinnerText.textContent = "Updating...";
+                }
+                statusEl.textContent = "";
+
+                const headers = { "Accept": "application/json" };
+                const csrfToken = getCsrfToken();
+                if (csrfToken) {
+                    headers["X-CSRFToken"] = csrfToken;
+                }
+
+                fetch("{% url 'update_inferences' %}", {
+                    method: "GET",
+                    headers: headers
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === "processing") {
+                        if (spinnerText) {
+                            spinnerText.textContent = data.message || "Retraining model...";
+                        }
+                        pollInferenceStatus(data.job_id, data.started_at, 90);
+                    } else {
+                        spinner.style.display = "none";
+                        updateBtn.disabled = false;
+                        statusEl.textContent = data.message || "Done!";
+                    }
+                })
+                .catch(error => {
+                    spinner.style.display = "none";
+                    updateBtn.disabled = false;
+                    statusEl.textContent = "Error updating risks.";
+                    console.error("Error:", error);
+                });
             });
-        });
+        })();
     </script>
     {% include "dojo/filter_js_snippet.html" %}
     {% include "dojo/snippets/selectpicker_in_dropdown.html" %}

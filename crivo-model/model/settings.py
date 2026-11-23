@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-WORKDIR = Path(os.getenv("CRIVO_STORAGE_PATH"))
+WORKDIR = Path(os.getenv("CRIVO_STORAGE_PATH", "/app/crivo-metadata"))
 TOKEN_FILE = WORKDIR / "api-token.env"
 CVE2META_PICKLE_FP = WORKDIR / "cve-metadata/cve2meta.pkl.gz"
 PREDICT_DIR = WORKDIR / "model/predict_inferences"

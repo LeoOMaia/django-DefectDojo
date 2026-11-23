@@ -9,8 +9,12 @@ register = template.Library()
 @register.simple_tag
 def get_assessment(user_assessments, model_inferences, key):
     key = str(key)
-    if key in user_assessments:
-        return user_assessments[key], False
-    if key in model_inferences:
-        return model_inferences[key], True
+    if isinstance(user_assessments, dict) and key in user_assessments:
+        user_risk = user_assessments[key]
+        if user_risk:
+            return user_risk, False
+    if isinstance(model_inferences, dict) and key in model_inferences:
+        model_risk = model_inferences[key]
+        if model_risk:
+            return model_risk, True
     return None, False

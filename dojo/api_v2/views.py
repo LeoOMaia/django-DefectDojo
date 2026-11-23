@@ -3702,25 +3702,29 @@ class RiskTriggerViewSet(viewsets.ViewSet):
             return Response({"error": "File not found."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            with Path.open(path_new_inferences, "rb") as file:
+            with Path(path_new_inferences).open("rb") as file:
                 data = pickle.load(file)
             user_ids = set()
             inferences = []
+            valid_risk_classes = {choice[0] for choice in Risk.RISK_CHOICES_CLASS}
             timestamp = timezone.now()
             for item in data:
+                risk_label = item.get("predicted_risk_label")
+                if not isinstance(risk_label, str) or risk_label not in valid_risk_classes:
+                    continue
                 user_ids.add(item["user_id"])
                 inferences.append(
                     Risk(
                         finding_id=item["id"],
                         user_id=item["user_id"],
-                        risk_class=item["predicted_risk_label"],
+                        risk_class=risk_label,
                         timestamp=timestamp,
                         is_model_inference=True,
                     ),
                 )
-            if not user_ids or len(user_ids) > 1:
+            if not user_ids or len(user_ids) > 1 or not inferences:
                 return Response(
-                    {"error": "More than one user ID found or no user ID provided."},
+                    {"error": "More than one user ID found or no valid inferences provided."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 

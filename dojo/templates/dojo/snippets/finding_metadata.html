@@ -17,7 +17,7 @@
     </h4>
   </div>
   <div id="test_panel" class="panel-body finding-description collapse {% if cves_metadata %}in{% endif %}">
-    {% if metadata_loaded %}
+    {% if metadata_loaded and cves_metadata %}
       <div class="kev_card_disclaimer">
         * {% trans "Cards with a black border have a KEV (Known Exploited Vulnerability) associated with them!" %}
       </div>

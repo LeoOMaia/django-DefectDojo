@@ -28,8 +28,13 @@ class DataStore:
             logger.warning("CRIVO DataStore metadata file missing (%s)", metadata_fp)
             return
 
-        with gzip.open(metadata_fp, "rb") as fd:
-            self.data = pickle.load(fd)
+        try:
+            with gzip.open(metadata_fp, "rb") as fd:
+                self.data = pickle.load(fd)
+        except Exception as exc:
+            logger.warning("Failed to load CRIVO DataStore metadata (%s): %s", metadata_fp, exc)
+            self.data = {}
+            return
 
         self._is_loaded = True
         logger.info("CVE metadata successfully loaded into DataStore")
@@ -40,16 +45,18 @@ class DataStore:
         return self.data
 
     def parse_desc(self, description) -> list[str]:
+        if not description:
+            return []
         match = self.FINDING_DESCRIPTION_GET_CVES.search(description)
         if not match:
             logger.debug("No CVEs found in description")
             return []
-        return [cve.strip() for cve in match.group(1).split(",")]
+        return [cve.strip() for cve in match.group(1).split(",") if cve.strip()]
 
     def get_metadata(self, description, classification_threshold=0.6):
         cves = self.parse_desc(description)
         if not cves:
-            return {}
+            return []
 
         cves_metadata = []
 
@@ -72,12 +79,12 @@ class DataStore:
             }
 
             if (epss := metadata.get("epss")) is not None:
-                cve_metadata["epss_score"] = round(epss.get("epss_score"), 2)
-                cve_metadata["epss_percentile"] = round(epss.get("epss_percentile"), 2)
+                cve_metadata["epss_score"] = round(epss.get("epss_score") or 0.0, 2)
+                cve_metadata["epss_percentile"] = round(epss.get("epss_percentile") or 0.0, 2)
 
             if (impact := metadata.get("impact")) is not None:
                 cve_metadata["cvss_label"] = f"CVSSv{impact.get('cvss_version')}"
-                cve_metadata["cvss_score"] = impact.get("cvss_score")
+                cve_metadata["cvss_score"] = impact.get("cvss_score") or 0.0
 
             cve_metadata["in_kev"] = "kev" in metadata
 

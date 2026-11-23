@@ -295,15 +295,27 @@
                         {% get_assessment user_assessments model_inferences finding.id as risk_tuple %}
                         {% with risk_value=risk_tuple.0 from_model=risk_tuple.1 %}
                             <td>
-                                <select class="risk-dropdown"
-                                data-finding-id="{{ finding.id }}"
-                                data-style="{% if from_model %}fa-asterisk{% endif %}">
-                                    <option value="NA" {% if risk_value == "NA" %}selected{% endif %}></option>
-                                    <option value="Mild" {% if risk_value == "Mild" %}selected{% endif %}>Mild</option>
-                                    <option value="Moderate" {% if risk_value == "Moderate" %}selected{% endif %}>Moderate</option>
-                                    <option value="Severe" {% if risk_value == "Severe" %}selected{% endif %}>Severe</option>
-                                    <option value="Critical" {% if risk_value == "Critical" %}selected{% endif %}>Critical</option>
-                                </select>
+                                <div class="risk-cell" style="display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;">
+                                    <select class="risk-dropdown"
+                                    data-finding-id="{{ finding.id }}"
+                                    data-from-model="{% if from_model %}true{% else %}false{% endif %}"
+                                    data-style="{% if from_model %}fa-asterisk{% endif %}">
+                                        <option value="NA" {% if risk_value == "NA" or not risk_value %}selected{% endif %}></option>
+                                        <option value="Mild" {% if risk_value == "Mild" %}selected{% endif %}>Mild</option>
+                                        <option value="Moderate" {% if risk_value == "Moderate" %}selected{% endif %}>Moderate</option>
+                                        <option value="Severe" {% if risk_value == "Severe" %}selected{% endif %}>Severe</option>
+                                        <option value="Critical" {% if risk_value == "Critical" %}selected{% endif %}>Critical</option>
+                                    </select>
+                                    {% if from_model and risk_value and risk_value != "NA" %}
+                                        <button type="button"
+                                                class="btn btn-xs btn-default confirm-risk-btn"
+                                                data-finding-id="{{ finding.id }}"
+                                                title="{% trans 'Confirm model inference as analyst assessment' %}"
+                                                aria-label="{% trans 'Confirm risk inference' %}">
+                                            <i class="fa-solid fa-check text-success"></i>
+                                        </button>
+                                    {% endif %}
+                                </div>
                             </td>
                         {% endwith %}
                         {% if system_settings.enable_finding_sla %}

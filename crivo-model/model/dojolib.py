@@ -17,20 +17,22 @@ if TYPE_CHECKING:
 @dataclasses.dataclass
 class DojoFinding:
     id: int
-    title: str
-    date: str
-    description: str
-    severity: str
-    vuln_id_from_tool: str
-    epss_score: float
-    epss_percentile: float
-    mitigation: str
-    cve: str
+    title: str | None = None
+    date: str | None = None
+    description: str | None = None
+    severity: str | None = None
+    vuln_id_from_tool: str | None = None
+    epss_score: float | None = None
+    epss_percentile: float | None = None
+    mitigation: str | None = None
+    cve: str | None = None
 
     FINDING_DESCRIPTION_GET_HOSTNAME: ClassVar[re.Pattern] = re.compile(r"\*\*Hostname\*\*: (.+)")
     HOSTNAME_KEYWORD_REGEX: ClassVar[re.Pattern] = re.compile(r"-[^0-9]")
 
     def parse_hostname(self) -> str | None:
+        if not self.description:
+            return None
         match = DojoFinding.FINDING_DESCRIPTION_GET_HOSTNAME.search(self.description)
         if not match:
             return None
@@ -66,33 +68,40 @@ class DojoFinding:
 
         for raw_cve in cve_list:
             cve = raw_cve.lower()
-            impact = cve_data.get(cve, {}).get("impact", {})
-            cvss_score_candidate = impact.get("cvss_score", 0)
+            entry = cve_data.get(cve) or {}
+            impact = entry.get("impact") or {}
+            cvss_score_candidate = impact.get("cvss_score") or 0
             max_cvss_score = max(max_cvss_score, cvss_score_candidate)
 
-            epss = cve_data.get(cve, {}).get("epss", {})
-            if epss.get("epss_percentile", 0) >= 0.8:
+            epss = entry.get("epss") or {}
+            if (epss.get("epss_percentile") or 0) >= 0.8:
                 num_cves_epss_p80 += 1
 
-            epss_score_candidate = epss.get("epss_score", 0)
+            epss_score_candidate = epss.get("epss_score") or 0
             if max_epss_score < epss_score_candidate:
-                cve_class = cve_data.get(cve, {}).get("classification", {})
-                cwes = cve_data.get(cve, {}).get("cwes", [])
-                cpes = cve_data.get(cve, {}).get("cpes", [])
+                cve_class = entry.get("classification") or {}
+                cwes = entry.get("cwes") or []
+                cpes = entry.get("cpes") or []
                 max_epss_score = epss_score_candidate
-                max_epss_percentile = epss.get("epss_percentile", 0)
+                max_epss_percentile = epss.get("epss_percentile") or 0
                 max_epss_num_cwes = len(set(cwes))
                 max_epss_num_cpes = len(set(cpes))
-                remote_code_execution = cve_class.get("remote code execution", 0)
-                privilege_escalation = cve_class.get("privilege escalation", 0)
-                information_disclosure = cve_class.get("information disclosure", 0)
-                denial_of_service = cve_class.get("denial of service", 0)
-                buffer_overflow = cve_class.get("buffer overflow", 0)
-                cross_site_request_forgery = cve_class.get("cross site request forgery", 0)
-                sql_injection = cve_class.get("sql injection", 0)
-                cross_site_scripting = cve_class.get("cross site scripting", 0)
+                remote_code_execution = float(cve_class.get("remote code execution") or 0)
+                privilege_escalation = float(cve_class.get("privilege escalation") or 0)
+                information_disclosure = float(cve_class.get("information disclosure") or 0)
+                denial_of_service = float(cve_class.get("denial of service") or 0)
+                buffer_overflow = float(cve_class.get("buffer overflow") or 0)
+                cross_site_request_forgery = float(cve_class.get("cross site request forgery") or 0)
+                sql_injection = float(cve_class.get("sql injection") or 0)
+                cross_site_scripting = float(cve_class.get("cross site scripting") or 0)
 
-            in_kev = max(in_kev, "kev" in cve_data.get(cve, {}))
+            in_kev = max(in_kev, "kev" in entry)
+
+        num_cves_2020 = 0
+        for c in cve_list:
+            parts = c.split("-")
+            if len(parts) >= 2 and parts[1].isdigit() and int(parts[1]) >= 2020:
+                num_cves_2020 += 1
 
         return DojoFindingFeatures(
             fid=self.id,
@@ -104,7 +113,7 @@ class DojoFinding:
             max_epss_num_cpes=max_epss_num_cpes,
             num_cves=len(cve_list),
             num_cves_epss_p80=num_cves_epss_p80,
-            num_cves_2020=len([c for c in cve_list if int(c.split("-")[1]) >= 2020]),
+            num_cves_2020=num_cves_2020,
             cve_remote_code_execution=remote_code_execution,
             cve_privilege_escalation=privilege_escalation,
             cve_information_disclosure=information_disclosure,
@@ -141,7 +150,7 @@ class DojoRanking:
         if self.risk_num is not None:
             self.ranking = int(self.risk_num)
         elif self.risk_class is not None:
-            self.ranking = DojoRanking.CLASS_MAP[self.risk_class]
+            self.ranking = DojoRanking.CLASS_MAP.get(self.risk_class)
         else:
             self.ranking = None
 
@@ -225,7 +234,9 @@ class OperatingSystem(enum.StrEnum):
     OTHER = "other"
 
     @staticmethod
-    def from_description(finding_description: str) -> OperatingSystem:
+    def from_description(finding_description: str | None) -> OperatingSystem:
+        if not finding_description:
+            return OperatingSystem.UNKNOWN
         match = OS_VENDOR_REGEX.search(finding_description)
         if not match:
             return OperatingSystem.UNKNOWN
@@ -265,11 +276,13 @@ def load_features_rankings(
     risk_file: Path,
     ds: datastore.DataStore,
 ) -> tuple[list[DojoFindingFeatures], list[DojoRanking]]:
-    findings_raw: list[dict] = pickle.load(Path.open(features_file, "rb"))
+    with features_file.open("rb") as f:
+        findings_raw: list[dict] = pickle.load(f)
     findings: list[DojoFinding] = [DojoFinding(**f) for f in findings_raw]
     features: list[DojoFindingFeatures] = [f.compute_features(ds) for f in findings]
 
-    rankings_raw: list[dict] = pickle.load(Path.open(risk_file, "rb"))
+    with risk_file.open("rb") as f:
+        rankings_raw: list[dict] = pickle.load(f)
     rankings = [DojoRanking(**r) for r in rankings_raw]
 
     return features, rankings
@@ -278,11 +291,13 @@ def load_features_rankings(
 def get_merged_df(
     findings: list[DojoFindingFeatures], rankings: list[DojoRanking],
 ) -> pd.DataFrame:
+    if not findings or not rankings:
+        return pd.DataFrame()
     df_features = pd.DataFrame(findings)
     for col in DojoFindingFeatures.CATEGORICAL_FEATURES:
         df_features[col] = df_features[col].astype(str).astype("category")
-    df_rankings = pd.DataFrame(rankings)
-    df_rankings = df_rankings.drop(columns=["timestamp", "risk_class", "risk_num"])
+    df_rankings = pd.DataFrame(rankings).drop_duplicates(subset=["id"], keep="last")
+    df_rankings = df_rankings.drop(columns=["timestamp", "risk_class", "risk_num"], errors="ignore")
     df_merged = df_features.merge(df_rankings, left_on="fid", right_on="id", how="left")
     if "id_y" in df_merged.columns:
         df_merged = df_merged.drop(columns=["id_y"])

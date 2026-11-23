@@ -1,3 +1,4 @@
+import json
 import logging
 import pickle
 import re
@@ -38,7 +39,20 @@ logger = logging.getLogger(__name__)
 
 ASSESSMENT_DIR = WORKDIR / "model/user_assessments"
 FEATURES_DIR = WORKDIR / "model/finding_features"
+STATUS_DIR = WORKDIR / "model/status"
 CLASS_LABELS = {v: k for k, v in dojolib.DojoRanking.CLASS_MAP.items() if v is not None}
+
+
+def write_job_status(job_id: str, status: str, message: str) -> None:
+    try:
+        STATUS_DIR.mkdir(parents=True, exist_ok=True)
+        status_fp = STATUS_DIR / f"{job_id}.json"
+        tmp_fp = status_fp.with_name(f".{status_fp.name}.tmp")
+        tmp_fp.write_text(json.dumps({"status": status, "message": message}), encoding="utf-8")
+        tmp_fp.chmod(0o666)
+        tmp_fp.replace(status_fp)
+    except OSError as exc:
+        logger.warning(f"Could not write job status file for {job_id}: {exc}")
 
 
 def load_token_from_envfile(env_path):
@@ -95,12 +109,13 @@ def train_model(x: pd.DataFrame, y: pd.Series) -> XGBRegressor:
 
 def predict(df: pd.DataFrame, model: XGBRegressor, feature_columns: list[str]) -> pd.DataFrame:
     df["predicted_raw_score"] = model.predict(df[feature_columns])
-    df["predicted_risk_class"] = np.round(df["predicted_raw_score"])
+    df["predicted_risk_class"] = np.clip(np.round(df["predicted_raw_score"]), 1, 4)
     df["predicted_risk_label"] = df["predicted_risk_class"].map(CLASS_LABELS)
     return df
 
 
 def export_predictions_to_pickle(predictions_df: pd.DataFrame, output_path: Path) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     df_to_pickle = predictions_df.assign(id=predictions_df.index)[
         ["id", "user_id", "predicted_risk_label", "predicted_risk_class"]
     ].to_dict(orient="records")
@@ -109,11 +124,11 @@ def export_predictions_to_pickle(predictions_df: pd.DataFrame, output_path: Path
     logger.info(f"Exported prediction results to {output_path} as pickle")
 
 
-def request_create_inferences(predict_file_path: Path, total_inferences: int) -> None:
+def request_create_inferences(predict_file_path: Path, total_inferences: int) -> bool:
     authorization = load_token_from_envfile(TOKEN_FILE)
-    if authorization is None:
+    if not authorization:
         logger.error("AUTHORIZATION token is not set. Cannot make API request.")
-        return
+        return False
 
     headers = {
         "Authorization": f"Token {authorization}",
@@ -132,7 +147,7 @@ def request_create_inferences(predict_file_path: Path, total_inferences: int) ->
         )
     except requests.RequestException:
         logger.exception(f"Request to {URL_API} failed")
-        return
+        return False
 
     try:
         resp_json = response.json()
@@ -149,27 +164,50 @@ def request_create_inferences(predict_file_path: Path, total_inferences: int) ->
                 )
         else:
             logger.info(f"Response from API: {response.status_code} - {response.text}")
-    else:
-        logger.error(f"API error response: {response.status_code} - {response.text}")
+        return True
+
+    logger.error(f"API error response: {response.status_code} - {response.text}")
+    return False
 
 
 def process_prediction_pipeline(assessment_fp: Path, features_fp: Path, datastore: DataStore):
+    job_id = assessment_fp.name.removesuffix("_assessments.pkl")
     logger.info(f"Processing files:\n- Assessments: {assessment_fp}\n- Features: {features_fp}")
-    class_df = load_combined_data(assessment_fp, features_fp, datastore)
-    unique_users = class_df["user_id"].dropna().unique()
-    if len(unique_users) != 1:
-        error_message = (
-            f"Expected exactly one user_id in the data, but found {len(unique_users)}: {unique_users}"
-        )
-        logger.error(error_message)
-    else:
+    try:
+        class_df = load_combined_data(assessment_fp, features_fp, datastore)
+        if class_df.empty or "user_id" not in class_df.columns:
+            msg = "No finding or assessment data available to process."
+            logger.warning(msg)
+            write_job_status(job_id, "error", msg)
+            return
+        unique_users = class_df["user_id"].dropna().unique()
+        if len(unique_users) != 1:
+            error_message = (
+                f"Expected exactly one user_id in the data, but found {len(unique_users)}: {unique_users}"
+            )
+            logger.error(error_message)
+            write_job_status(job_id, "error", error_message)
+            return
+
         user_id = int(unique_users[0])
         class_df = class_df.drop(columns=["user_id"])
         training_df = prepare_training_data(class_df)
+        if training_df.empty:
+            msg = "No rated assessments available for training."
+            logger.warning(msg)
+            write_job_status(job_id, "error", msg)
+            return
+
+        prediction_df = prepare_prediction_data(class_df, training_df)
+        if prediction_df.empty:
+            msg = "All findings already have user assessments."
+            logger.info(msg)
+            write_job_status(job_id, "completed", msg)
+            return
+
         columns_to_exclude = ["id", "fid", "ranking", "risk_class", "risk_num"]
         feature_columns = [col for col in training_df.columns if col not in columns_to_exclude]
-        model = train_model(training_df[feature_columns], training_df[TARGET_COLUMN])
-        prediction_df = prepare_prediction_data(class_df, training_df)
+        model = train_model(training_df[feature_columns], training_df[TARGET_COLUMN].astype(float))
         prediction_result = predict(prediction_df, model, feature_columns)
         prediction_result["user_id"] = user_id
 
@@ -178,22 +216,30 @@ def process_prediction_pipeline(assessment_fp: Path, features_fp: Path, datastor
         export_predictions_to_pickle(prediction_result, predict_file)
 
         total_inferences = len(prediction_result)
-        request_create_inferences(predict_file, total_inferences)
+        if request_create_inferences(predict_file, total_inferences):
+            write_job_status(job_id, "completed", "Inferences updated! Reloading...")
+        else:
+            write_job_status(job_id, "error", "Failed to save model inferences via API.")
+    except Exception as exc:
+        logger.exception("Error while running prediction pipeline")
+        write_job_status(job_id, "error", f"Model inference error: {exc}")
+    finally:
+        if assessment_fp.exists():
+            assessment_fp.unlink()
+        else:
+            logger.warning(f"Assessment file {assessment_fp} was missing during cleanup.")
 
-    if assessment_fp.exists():
-        assessment_fp.unlink()
-    else:
-        logger.warning(f"Assessment file {assessment_fp} was missing during cleanup.")
-
-    if features_fp.exists():
-        features_fp.unlink()
-    else:
-        logger.warning(f"Features file {features_fp} was missing during cleanup.")
-    logger.info("Cleanup temporary files completed.")
+        if features_fp.exists():
+            features_fp.unlink()
+        else:
+            logger.warning(f"Features file {features_fp} was missing during cleanup.")
+        logger.info("Cleanup temporary files completed.")
 
 
-def handle_event(event, datastore):
-    assessment_fp = Path(event.src_path)
+def handle_event(event, datastore, *, path_override: str | None = None):
+    if getattr(event, "is_directory", False):
+        return
+    assessment_fp = Path(path_override or event.src_path)
     if assessment_fp.suffix != ".pkl":
         logger.debug(f"Ignoring non-pkl file in assessment directory: {assessment_fp}")
         return
@@ -209,6 +255,7 @@ def handle_event(event, datastore):
         process_prediction_pipeline(assessment_fp, features_fp, datastore)
     else:
         logger.warning(f"Features file not found: {features_fp}")
+        write_job_status(f"{user_id}_{timestamp}", "error", "Features file not found.")
 
 
 def handle_shutdown(signum, frame):
@@ -242,10 +289,20 @@ def main():
     observer = Observer()
 
     def on_created(event):
-        handle_event(event, datastore)
+        try:
+            handle_event(event, datastore)
+        except Exception:
+            logger.exception("Unhandled error in watchdog on_created handler")
+
+    def on_moved(event):
+        try:
+            handle_event(event, datastore, path_override=event.dest_path)
+        except Exception:
+            logger.exception("Unhandled error in watchdog on_moved handler")
 
     event_handler = FileSystemEventHandler()
     event_handler.on_created = on_created
+    event_handler.on_moved = on_moved
     observer.schedule(event_handler, str(ASSESSMENT_DIR), recursive=False)
 
     signal.signal(signal.SIGINT, handle_shutdown)
